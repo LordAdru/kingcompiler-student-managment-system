@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: Check if the user is the Super Admin by email
+    function isSuperAdmin() {
+      return request.auth != null && 
+             request.auth.token.email.lower() == 'kingcompiler.official@gmail.com';
+    }
+
+    // Default: Require authentication for any data access
+    match /{document=**} {
+      // For a management app, we allow authenticated users to interact with data.
+      // The frontend logic handles role-based filtering, but this ensures 
+      // no unauthorized public access.
+      allow read, write: if request.auth != null;
+    }
+
+    // Specific protection for the users collection
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isSuperAdmin() || request.auth.uid == userId;
+    }
+  }
+}

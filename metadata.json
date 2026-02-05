@@ -1,0 +1,7 @@
+{
+  "name": "KingCompiler Academy Manager",
+  "description": "Production-grade academy management system. Handles students, automated weekly scheduling, sequential curriculum tracking, and intelligent fee warning systems.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
