@@ -17,9 +17,15 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  X,
+  CreditCard,
+  ChevronRight,
+  Volume2,
+  Bell
 } from 'lucide-react';
-import { format, parseISO, addDays } from 'date-fns';
+// Use native Date constructor instead of parseISO to avoid import errors
+import { format, addDays } from 'date-fns';
 import { Student, ClassSession, GroupBatch } from '../types';
 import { AttendanceModal } from './AttendanceModal';
 import { Logo } from './Logo';
@@ -35,6 +41,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [groups, setGroups] = useState<GroupBatch[]>([]);
   const [selectedSession, setSelectedSession] = useState<ClassSession | null>(null);
+  const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showRevenue, setShowRevenue] = useState(false);
@@ -108,7 +115,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const activeAgenda = agendaView === 'today' ? todayAgenda : tomorrowAgenda;
 
   const stats = useMemo(() => {
-    const feeDue = students.filter(s => s.billing?.feeStatus === 'due').length;
+    const overdueList = students.filter(s => s.billing?.feeStatus === 'due');
     const totalMonthlyRevenue = students.reduce((acc, s) => acc + (s.billing?.feeAmount || 0), 0);
     const collectedRevenue = students
       .filter(s => s.billing?.feeStatus === 'paid')
@@ -118,7 +125,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
       totalStudents: students.length,
       todayCount: todayAgenda.length,
       tomorrowCount: tomorrowAgenda.length,
-      feeDue,
+      feeDue: overdueList.length,
+      overdueStudents: overdueList,
       revenue: totalMonthlyRevenue,
       collected: collectedRevenue,
       collectionRate: totalMonthlyRevenue > 0 ? Math.round((collectedRevenue / totalMonthlyRevenue) * 100) : 0
@@ -127,33 +135,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
 
   const cards = [
     { 
+      id: 'revenue',
       label: 'Monthly Revenue', 
       value: showRevenue ? `$${stats.revenue.toLocaleString()}` : '••••••', 
       icon: TrendingUp, 
       color: 'text-emerald-600', 
       bg: 'bg-emerald-50',
-      isRevenue: true
+      isRevenue: true,
+      clickable: false
     },
     { 
+      id: 'today',
       label: 'Agenda Today', 
       value: stats.todayCount, 
       icon: Calendar, 
       color: 'text-purple-600', 
-      bg: 'bg-purple-50' 
+      bg: 'bg-purple-50',
+      clickable: false
     },
     { 
+      id: 'overdue',
       label: 'Overdue Payments', 
       value: stats.feeDue, 
       icon: DollarSign, 
       color: 'text-red-600', 
-      bg: 'bg-red-50' 
+      bg: 'bg-red-50',
+      clickable: true
     },
     { 
+      id: 'directory',
       label: isAdmin ? 'Global Directory' : 'Your Students', 
       value: stats.totalStudents, 
       icon: Users, 
       color: 'text-blue-600', 
-      bg: 'bg-blue-50' 
+      bg: 'bg-blue-50',
+      clickable: false
     },
   ];
 
@@ -215,18 +231,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {cards.map((card, i) => (
-          <div key={i} className="bg-white p-6 lg:p-8 rounded-[1.5rem] lg:rounded-[2.5rem] shadow-sm border border-slate-100 hover:border-amber-200 transition-all duration-300 group/card relative">
+          <div 
+            key={i} 
+            onClick={() => card.clickable && card.id === 'overdue' && setIsOverdueModalOpen(true)}
+            className={`text-left bg-white p-6 lg:p-8 rounded-[1.5rem] lg:rounded-[2.5rem] shadow-sm border border-slate-100 transition-all duration-300 group/card relative ${card.clickable ? 'hover:border-amber-400 hover:shadow-xl hover:shadow-slate-200/50 cursor-pointer' : ''}`}
+          >
             <div className="flex items-center justify-between mb-6 lg:mb-8">
               <div className={`${card.bg} p-3 lg:p-4 rounded-xl lg:rounded-2xl`}>
                 <card.icon className={card.color} size={24} />
               </div>
               {card.isRevenue && (
-                <button 
-                  onClick={() => setShowRevenue(!showRevenue)}
-                  className="p-2 rounded-lg bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all border border-transparent hover:border-amber-100"
+                <div 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setShowRevenue(!showRevenue); 
+                  }}
+                  className="p-2 rounded-lg bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all border border-transparent hover:border-amber-100 cursor-pointer z-20"
                 >
                   {showRevenue ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+                </div>
+              )}
+              {card.clickable && (
+                <ArrowRight size={16} className="text-slate-300 group-hover/card:translate-x-1 transition-transform" />
               )}
             </div>
             <p className="text-slate-400 font-bold text-[9px] lg:text-[10px] uppercase tracking-widest mb-1">{card.label}</p>
@@ -298,7 +324,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
                       </span>
                     </div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                      <Clock size={10} /> {format(parseISO(session.start), 'HH:mm')}
+                      <Clock size={10} /> {format(new Date(session.start), 'HH:mm')}
                     </p>
                   </div>
                 </div>
@@ -329,6 +355,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
             <QuickAction icon={Users} title="Enroll Student" onClick={() => onNavigate('students')} />
             <QuickAction icon={Layers} title="Batch Manager" onClick={() => onNavigate('groups')} />
             <QuickAction icon={Zap} title="Curriculum" onClick={() => onNavigate('curriculum')} />
+            <QuickAction 
+              icon={Bell} 
+              title="Test Alarm Sound" 
+              onClick={() => {
+                academyLogic.playAcademyChime();
+              }} 
+            />
           </div>
           <div className="mt-8 pt-8 border-t border-slate-100">
              <div className="p-5 bg-slate-900 rounded-2xl flex items-center justify-between">
@@ -350,6 +383,104 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
           onFinalize={handleFinalize}
         />
       )}
+
+      {isOverdueModalOpen && (
+        <OverduePaymentsModal 
+          students={stats.overdueStudents}
+          onClose={() => setIsOverdueModalOpen(false)}
+          onViewProfile={(id) => {
+            setIsOverdueModalOpen(false);
+            onSelectStudent(id);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+const OverduePaymentsModal: React.FC<{ 
+  students: Student[], 
+  onClose: () => void, 
+  onViewProfile: (id: string) => void 
+}> = ({ students, onClose, onViewProfile }) => {
+  const totalOutstanding = students.reduce((sum, s) => sum + (s.billing?.feeAmount || 0), 0);
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-300 max-h-[85vh] flex flex-col">
+        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
+              <AlertCircle size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Overdue Payments</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Pending Collections</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all shadow-sm">
+            <X size={24} className="text-slate-400" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-8 space-y-4">
+          {students.length === 0 ? (
+            <div className="py-20 text-center">
+              <CheckCircle2 size={48} className="mx-auto text-emerald-500 mb-4 opacity-20" />
+              <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">All accounts are up to date.</p>
+            </div>
+          ) : (
+            students.map((student) => (
+              <div 
+                key={student.id} 
+                className="flex items-center justify-between p-6 bg-slate-50 rounded-[2rem] border border-slate-100 hover:border-red-200 transition-all group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center font-black text-slate-400 shadow-sm group-hover:bg-red-50 group-hover:text-red-600 transition-all">
+                    {student.fullName.charAt(0)}
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-800 text-sm leading-none mb-1">{student.fullName}</h4>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      {student.course} • {student.billing.classesAttended}/{student.billing.totalClassesAllowed} Classes
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="text-right">
+                    <p className="text-lg font-black text-red-600 leading-none mb-1">${student.billing.feeAmount}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">UNPAID FEE</p>
+                  </div>
+                  <button 
+                    onClick={() => onViewProfile(student.id)}
+                    className="p-3 bg-white hover:bg-red-600 hover:text-white text-slate-400 border border-slate-200 rounded-2xl transition-all group/btn"
+                  >
+                    <ChevronRight size={18} className="group-hover/btn:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="p-8 bg-slate-900 text-white flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/10 rounded-xl">
+              <CreditCard size={20} className="text-amber-500" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Total Outstanding</p>
+              <p className="text-2xl font-black text-white leading-none">${totalOutstanding.toLocaleString()}</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose}
+            className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all"
+          >
+            Acknowledge
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

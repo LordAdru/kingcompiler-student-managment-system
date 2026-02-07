@@ -8,6 +8,7 @@ import { CalendarView } from './components/CalendarView';
 import { StudentProfile } from './components/StudentProfile';
 import { CurriculumView } from './components/CurriculumView';
 import { PartnerManager } from './components/PartnerManager';
+import { ClassAlarmManager } from './components/ClassAlarmManager';
 import { LoginPage } from './components/LoginPage';
 import { authService } from './services/auth';
 import { AppUser } from './types';
@@ -97,6 +98,8 @@ const App: React.FC = () => {
           )}
         </div>
       </Layout>
+      {/* Global background alarm monitoring */}
+      <ClassAlarmManager />
     </div>
   );
 };
