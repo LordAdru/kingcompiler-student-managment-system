@@ -3,8 +3,29 @@ import { Student, ClassSession, AttendanceRecord } from '../types';
 import { dbService } from './db';
 
 export const academyLogic = {
-  // Shared audio engine for alarms and notifications
+  // Main entry point for playing the alarm
   playAcademyChime: () => {
+    try {
+      const customSound = localStorage.getItem('academy_custom_alarm');
+      
+      if (customSound) {
+        const audio = new Audio(customSound);
+        audio.play().catch(e => {
+          console.warn("Academy Logic: Custom audio failed, falling back to synth.", e);
+          academyLogic.playDefaultSynthChime();
+        });
+      } else {
+        academyLogic.playDefaultSynthChime();
+      }
+    } catch (e) {
+      console.warn("Academy Logic: Audio chime could not play.", e);
+      // Even if local storage or Audio fails, try synth one last time
+      academyLogic.playDefaultSynthChime();
+    }
+  },
+
+  // The original synthesized "beeps" as a reliable fallback
+  playDefaultSynthChime: () => {
     try {
       const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
       if (!AudioContextClass) return;
@@ -13,7 +34,6 @@ export const academyLogic = {
       const oscillator = ctx.createOscillator();
       const gainNode = ctx.createGain();
 
-      // Professional 3-tone rising sequence (C5 -> E5 -> G5)
       oscillator.type = 'sine';
       oscillator.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
       oscillator.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.1); // E5
@@ -29,7 +49,16 @@ export const academyLogic = {
       oscillator.start();
       oscillator.stop(ctx.currentTime + 1.5);
     } catch (e) {
-      console.warn("Academy Logic: Audio chime could not play.", e);
+      console.error("Academy Logic: Synth fallback failed.", e);
+    }
+  },
+
+  // Helper to save a custom sound
+  setCustomAlarm: (source: string | null) => {
+    if (source) {
+      localStorage.setItem('academy_custom_alarm', source);
+    } else {
+      localStorage.removeItem('academy_custom_alarm');
     }
   },
 
@@ -39,7 +68,6 @@ export const academyLogic = {
     
     if (!student) return;
 
-    // 1. Create actual Attendance Record
     const attendance: AttendanceRecord = {
       id: Math.random().toString(36).substr(2, 9),
       sessionId: session.id,
@@ -51,15 +79,12 @@ export const academyLogic = {
     await dbService.saveAttendance(attendance);
 
     if (present) {
-      // 2. Increment attendance count
       student.billing.classesAttended += 1;
 
-      // 3. Move the pointer forward
       if (student.currentTopicIndex < student.assignedTopics.length) {
         student.currentTopicIndex += 1;
       }
 
-      // 4. Fee Warning Logic
       const remaining = student.billing.totalClassesAllowed - student.billing.classesAttended;
       if (remaining <= 0) {
         student.billing.feeStatus = 'due';

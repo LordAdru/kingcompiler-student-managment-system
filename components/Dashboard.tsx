@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { dbService } from '../services/db';
 import { academyLogic } from '../services/logic';
 import { 
@@ -22,9 +22,13 @@ import {
   CreditCard,
   ChevronRight,
   Volume2,
-  Bell
+  Bell,
+  Settings,
+  Upload,
+  Link as LinkIcon,
+  Play,
+  Trash2
 } from 'lucide-react';
-// Use native Date constructor instead of parseISO to avoid import errors
 import { format, addDays } from 'date-fns';
 import { Student, ClassSession, GroupBatch } from '../types';
 import { AttendanceModal } from './AttendanceModal';
@@ -42,6 +46,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const [groups, setGroups] = useState<GroupBatch[]>([]);
   const [selectedSession, setSelectedSession] = useState<ClassSession | null>(null);
   const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
+  const [isAlarmSettingsOpen, setIsAlarmSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showRevenue, setShowRevenue] = useState(false);
@@ -77,12 +82,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const tomorrowStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
   const getFilteredAgenda = (targetDateStr: string) => {
-    // Only include students who are NOT on break
     const activeStudentIds = new Set(students.filter(s => s.status !== 'break').map(s => s.id));
 
     const rawAgenda = sessions
       .filter(s => s.start?.startsWith(targetDateStr))
-      // Suppress sessions for students on break
       .filter(s => {
         if (s.studentId && !activeStudentIds.has(s.studentId)) return false;
         return true;
@@ -367,10 +370,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
             <QuickAction icon={Zap} title="Curriculum" onClick={() => onNavigate('curriculum')} />
             <QuickAction 
               icon={Bell} 
-              title="Test Alarm Sound" 
-              onClick={() => {
-                academyLogic.playAcademyChime();
-              }} 
+              title="Alarm Settings" 
+              onClick={() => setIsAlarmSettingsOpen(true)} 
             />
           </div>
           <div className="mt-8 pt-8 border-t border-slate-100">
@@ -404,6 +405,141 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
           }}
         />
       )}
+
+      {isAlarmSettingsOpen && (
+        <AlarmSettingsModal 
+          onClose={() => setIsAlarmSettingsOpen(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+const AlarmSettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const [currentSound, setCurrentSound] = useState<string | null>(localStorage.getItem('academy_custom_alarm'));
+  const [urlInput, setUrlInput] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        academyLogic.setCustomAlarm(base64);
+        setCurrentSound(base64);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUrlSave = () => {
+    if (urlInput.trim()) {
+      academyLogic.setCustomAlarm(urlInput.trim());
+      setCurrentSound(urlInput.trim());
+      setUrlInput('');
+    }
+  };
+
+  const resetToDefault = () => {
+    academyLogic.setCustomAlarm(null);
+    setCurrentSound(null);
+  };
+
+  const testSound = () => {
+    academyLogic.playAcademyChime();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+      <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-amber-500 rounded-2xl text-slate-900">
+              <Settings size={24} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-800">Alarm Configuration</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Custom Audio Engine</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all shadow-sm">
+            <X size={24} className="text-slate-400" />
+          </button>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col items-center text-center">
+             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-amber-500 shadow-sm mb-4">
+               {currentSound ? <Volume2 size={32} /> : <Bell size={32} className="opacity-20" />}
+             </div>
+             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Current Status</p>
+             <p className="text-sm font-bold text-slate-800 mb-4">
+               {currentSound ? 'Custom Sound Active' : 'Professional Synth (Default)'}
+             </p>
+             <button 
+               onClick={testSound}
+               className="px-8 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-800 transition-all"
+             >
+               <Play size={14} /> Test Alarm
+             </button>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Source Selection</h4>
+            <div className="grid grid-cols-1 gap-3">
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex items-center justify-between p-4 bg-white border border-slate-100 hover:border-amber-400 rounded-2xl transition-all text-left group"
+              >
+                <div className="flex items-center gap-3">
+                  <Upload size={18} className="text-slate-400 group-hover:text-amber-500" />
+                  <span className="text-xs font-bold text-slate-700">Upload MP3/WAV File</span>
+                </div>
+                <ArrowRight size={14} className="text-slate-200 group-hover:text-amber-500" />
+              </button>
+              <input type="file" ref={fileInputRef} className="hidden" accept="audio/*" onChange={handleFileUpload} />
+
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  <LinkIcon size={16} />
+                </div>
+                <input 
+                  type="text" 
+                  placeholder="Paste audio URL..." 
+                  className="w-full pl-12 pr-16 py-4 bg-white border border-slate-100 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500/20"
+                  value={urlInput}
+                  onChange={e => setUrlInput(e.target.value)}
+                />
+                <button 
+                  onClick={handleUrlSave}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all"
+                >
+                  <CheckCircle2 size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {currentSound && (
+            <button 
+              onClick={resetToDefault}
+              className="w-full flex items-center justify-center gap-2 py-4 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 rounded-2xl transition-all"
+            >
+              <Trash2 size={14} /> Clear Custom Sound
+            </button>
+          )}
+        </div>
+
+        <div className="p-8 bg-slate-50 border-t border-slate-100">
+          <button 
+            onClick={onClose}
+            className="w-full py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-50 transition-all"
+          >
+            Acknowledge Settings
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
