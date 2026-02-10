@@ -5,6 +5,7 @@ import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   getAuth,
+  sendPasswordResetEmail,
   User 
 // @ts-ignore
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
@@ -16,13 +17,16 @@ import {
 import { 
   doc, 
   getDoc,
-  setDoc 
+  getDocs,
+  setDoc,
+  collection,
+  query,
+  where
 // @ts-ignore
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { auth, db } from './firebase';
-import { AppUser, UserRole } from '../types';
+import { AppUser, UserRole, Student } from '../types';
 
-// We need the config to initialize a secondary app for admin-level user creation
 const firebaseConfig = {
   apiKey: "AIzaSyBQZxatyfbgQCcZdAFIV2ucanowLuIZhn8",
   authDomain: "kingcompiler-academy-manager.firebaseapp.com",
@@ -42,12 +46,23 @@ export const authService = {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
       if (!userDoc.exists()) {
-        const role: UserRole = isAdminEmail ? 'admin' : 'collaborator';
+        const studentQuery = query(collection(db, 'students'), where('email', '==', email.toLowerCase()));
+        const studentSnap = await getDocs(studentQuery);
+        
+        let role: UserRole = isAdminEmail ? 'admin' : 'collaborator';
+        let studentId: string | undefined = undefined;
+
+        if (!isAdminEmail && !studentSnap.empty) {
+          role = 'student';
+          studentId = studentSnap.docs[0].id;
+        }
+
         const newUser: AppUser = {
           uid: user.uid,
           email: user.email,
           role,
-          displayName: user.email?.split('@')[0]
+          displayName: user.email?.split('@')[0],
+          studentId
         };
         await setDoc(doc(db, 'users', user.uid), newUser);
         return newUser;
@@ -63,11 +78,7 @@ export const authService = {
     }
   },
 
-  /**
-   * High-level Admin Tool: Creates a partner account without logging out the admin.
-   * Uses a temporary secondary Firebase app instance.
-   */
-  adminCreatePartnerAccount: async (email: string, password: string, displayName: string): Promise<string> => {
+  adminCreateUserAccount: async (email: string, password: string, displayName: string, role: UserRole, studentId?: string): Promise<string> => {
     const tempAppName = `temp-app-${Date.now()}`;
     const tempApp = initializeApp(firebaseConfig, tempAppName);
     const tempAuth = getAuth(tempApp);
@@ -76,24 +87,29 @@ export const authService = {
       const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
       const uid = userCredential.user.uid;
 
-      // Initialize Firestore entry
       await setDoc(doc(db, 'users', uid), {
         uid,
-        email,
+        email: email.toLowerCase(),
         displayName,
-        role: 'collaborator'
+        role,
+        studentId: studentId || null
       });
 
-      // Sign out and destroy the temporary app immediately
       await tempAuth.signOut();
       await deleteApp(tempApp);
 
       return uid;
     } catch (error: any) {
-      // Cleanup even on error
       await deleteApp(tempApp);
-      throw new Error(error.message || 'Failed to create partner credentials.');
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('This email is already registered. If you need to update the password, please use the reset option.');
+      }
+      throw new Error(error.message || 'Failed to create user credentials.');
     }
+  },
+
+  sendResetEmail: async (email: string): Promise<void> => {
+    await sendPasswordResetEmail(auth, email);
   },
 
   signOut: async (): Promise<void> => {
@@ -112,10 +128,14 @@ export const authService = {
             if (isAdminEmail) data.role = 'admin';
             callback(data);
           } else {
+            const studentQuery = query(collection(db, 'students'), where('email', '==', user.email?.toLowerCase()));
+            const studentSnap = await getDocs(studentQuery);
+            
             callback({
               uid: user.uid,
               email: user.email,
-              role: isAdminEmail ? 'admin' : 'collaborator',
+              role: isAdminEmail ? 'admin' : (!studentSnap.empty ? 'student' : 'collaborator'),
+              studentId: !studentSnap.empty ? studentSnap.docs[0].id : undefined,
               displayName: user.email?.split('@')[0]
             });
           }

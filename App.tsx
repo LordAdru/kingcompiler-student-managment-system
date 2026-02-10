@@ -10,10 +10,14 @@ import { CurriculumView } from './components/CurriculumView';
 import { PartnerManager } from './components/PartnerManager';
 import { ClassAlarmManager } from './components/ClassAlarmManager';
 import { LoginPage } from './components/LoginPage';
+import { StudentPortal } from './components/StudentPortal';
+import { LibraryManager } from './components/LibraryManager';
+import { AnnouncementManager } from './components/AnnouncementManager';
+import { HomeworkManager } from './components/HomeworkManager';
 import { authService } from './services/auth';
 import { AppUser } from './types';
 
-type View = 'dashboard' | 'students' | 'groups' | 'calendar' | 'curriculum' | 'student-profile' | 'partners';
+type View = 'dashboard' | 'students' | 'groups' | 'calendar' | 'curriculum' | 'student-profile' | 'partners' | 'library' | 'announcements' | 'homework-admin';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -64,6 +68,10 @@ const App: React.FC = () => {
     return <LoginPage onLogin={handleLogin} />;
   }
 
+  if (user.role === 'student' && user.studentId) {
+    return <StudentPortal studentId={user.studentId} onLogout={handleLogout} />;
+  }
+
   return (
     <div className="h-full">
       <Layout 
@@ -88,6 +96,15 @@ const App: React.FC = () => {
           {currentView === 'partners' && (
             <PartnerManager />
           )}
+          {currentView === 'library' && (
+            <LibraryManager />
+          )}
+          {currentView === 'announcements' && (
+            <AnnouncementManager />
+          )}
+          {currentView === 'homework-admin' && (
+            <HomeworkManager />
+          )}
           {currentView === 'calendar' && <CalendarView />}
           {currentView === 'curriculum' && <CurriculumView />}
           {currentView === 'student-profile' && selectedStudentId && (
@@ -98,7 +115,6 @@ const App: React.FC = () => {
           )}
         </div>
       </Layout>
-      {/* Global background alarm monitoring */}
       <ClassAlarmManager />
     </div>
   );

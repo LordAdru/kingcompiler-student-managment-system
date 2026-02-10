@@ -1,8 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { dbService } from '../services/db';
+import { authService } from '../services/auth';
 import { Student, ClassSchedule, BillingType, FeeStatus, AppUser, StudentStatus } from '../types';
-import { Plus, Search, Trash2, UserPlus, Eye, Edit2, Clock, Calendar, X, ListOrdered, Phone, Share2, CreditCard, Moon, UserCheck, Users as UsersIcon } from 'lucide-react';
+import { Plus, Search, Trash2, UserPlus, Eye, Edit2, Clock, Calendar, X, ListOrdered, Phone, Share2, CreditCard, Moon, UserCheck, Users as UsersIcon, Key, ShieldCheck, Lock, EyeOff, Copy, Check, Video } from 'lucide-react';
 import { COURSES, LEVEL_TOPICS } from '../constants';
 
 interface StudentManagerProps {
@@ -74,9 +75,16 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
     }
   };
 
-  const handleSave = async (student: Student, schedules: any[], deletedScheduleIds: string[]) => {
+  const handleSave = async (student: Student, schedules: any[], deletedScheduleIds: string[], authConfig?: { email: string, pass: string }) => {
+    // 1. Ensure email is attached to student record for portal matching
+    if (authConfig?.email) {
+      student.email = authConfig.email.toLowerCase();
+    }
+
+    // 2. Save Student Record
     await dbService.saveStudent(student);
     
+    // 3. Handle Schedules
     for (const id of deletedScheduleIds) {
       await dbService.deleteSchedule(id);
     }
@@ -94,6 +102,28 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
         active: sch.active ?? true
       };
       await dbService.saveSchedule(schedule);
+    }
+
+    // 4. Handle Account Creation
+    if (authConfig) {
+      try {
+        await authService.adminCreateUserAccount(
+          authConfig.email, 
+          authConfig.pass, 
+          student.fullName, 
+          'student', 
+          student.id
+        );
+      } catch (err: any) {
+        // If account already exists, we don't alert as an error because the student 
+        // record is already saved and linked via email.
+        if (err.message.includes('already registered')) {
+          console.info("Portal account already exists. Record linked via email.");
+        } else {
+          console.error("Failed to create student auth:", err);
+          alert("Record saved, but portal activation encountered an issue: " + err.message);
+        }
+      }
     }
 
     await fetchData();
@@ -340,13 +370,15 @@ const StudentModal: React.FC<{
   student: Student | null, 
   collaborators: AppUser[],
   onClose: () => void, 
-  onSave: (s: Student, schedules: any[], deletedIds: string[]) => void 
+  onSave: (s: Student, schedules: any[], deletedIds: string[], authConfig?: { email: string, pass: string }) => void 
 }> = ({ student, collaborators, onClose, onSave }) => {
   const [formData, setFormData] = useState<Partial<Student>>(student || {
     id: Math.random().toString(36).substr(2, 9),
     fullName: '',
+    email: '',
     age: 18,
     whatsappNumber: '',
+    meetingLink: '',
     course: COURSES[0],
     level: LEVEL_TOPICS[0].level,
     collaboratorId: '',
@@ -379,6 +411,11 @@ const StudentModal: React.FC<{
 
   const [deletedScheduleIds, setDeletedScheduleIds] = useState<string[]>([]);
   const [isSchedulesLoading, setIsSchedulesLoading] = useState(!!student);
+  
+  const [enableAccess, setEnableAccess] = useState(false);
+  const [studentPassword, setStudentPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (student) {
@@ -398,6 +435,13 @@ const StudentModal: React.FC<{
   const currentLevelTopics = useMemo(() => {
     return LEVEL_TOPICS.find(lt => lt.level === formData.level)?.topics || [];
   }, [formData.level]);
+
+  const copyCreds = () => {
+    const text = `KingCompiler Academy\n\nLogin Email: ${formData.email}\nPassword: ${studentPassword}\n\nLogin at: ${window.location.origin}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const addSlot = () => {
     setInitialSchedules(prev => [...prev, {
@@ -459,12 +503,20 @@ const StudentModal: React.FC<{
       alert("Please select at least one day for all schedule slots.");
       return;
     }
+    if (enableAccess && (!formData.email || studentPassword.length < 6)) {
+      alert("Please provide a valid email and a password of at least 6 characters for portal access.");
+      return;
+    }
+
     const finalStudent: Student = {
       ...formData,
       status: (formData.status as StudentStatus) || 'active',
       assignedTopics: currentLevelTopics
     } as Student;
-    onSave(finalStudent, initialSchedules, deletedScheduleIds);
+
+    const authConfig = enableAccess ? { email: formData.email!, pass: studentPassword } : undefined;
+    
+    onSave(finalStudent, initialSchedules, deletedScheduleIds, authConfig);
   };
 
   return (
@@ -482,6 +534,83 @@ const StudentModal: React.FC<{
           </div>
 
           <div className="flex-1 p-6 sm:p-8 space-y-8 overflow-y-auto">
+            {/* Account Access Creation Section */}
+            <div className={`bg-slate-900 rounded-[2rem] p-6 text-white space-y-4 transition-all ${enableAccess ? 'ring-4 ring-amber-500/20' : ''}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${student?.email || enableAccess ? 'bg-amber-500 text-slate-900' : 'bg-white/10 text-slate-500'}`}>
+                    <Key size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm tracking-tight">{student?.email ? 'Manage Account' : 'Portal Credentials'}</h3>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                      {student?.email ? 'Account Active' : 'Enable Student Dashboard'}
+                    </p>
+                  </div>
+                </div>
+                {!student?.email && (
+                  <button 
+                    type="button"
+                    onClick={() => setEnableAccess(!enableAccess)}
+                    className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${enableAccess ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 'bg-white/10 text-slate-400'}`}
+                  >
+                    {enableAccess ? 'Disable Access' : 'Enable Access'}
+                  </button>
+                )}
+              </div>
+
+              {(enableAccess || student?.email) && (
+                <div className="space-y-4 pt-2 animate-in slide-in-from-top-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Portal Email</label>
+                        <input 
+                          required 
+                          type="email" 
+                          placeholder="student@example.com"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50" 
+                          value={formData.email}
+                          onChange={e => setFormData({...formData, email: e.target.value})}
+                          disabled={!!student?.email}
+                        />
+                     </div>
+                     {!student?.email && (
+                       <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Temporary Password</label>
+                          <div className="relative">
+                            <input 
+                              required 
+                              type={showPass ? "text" : "password"}
+                              placeholder="Min 6 characters"
+                              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm outline-none focus:ring-1 focus:ring-amber-500 pr-10" 
+                              value={studentPassword}
+                              onChange={e => setStudentPassword(e.target.value)}
+                            />
+                            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
+                              {showPass ? <EyeOff size={16}/> : <Eye size={16}/>}
+                            </button>
+                          </div>
+                       </div>
+                     )}
+                  </div>
+                  {!student?.email && (
+                    <button 
+                      type="button"
+                      onClick={copyCreds}
+                      className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-all"
+                    >
+                      {copied ? <><Check size={14} className="text-emerald-500" /> Copied!</> : <><Copy size={14} /> Copy Credentials for WhatsApp</>}
+                    </button>
+                  )}
+                  {student?.email && (
+                    <p className="text-[9px] text-slate-500 font-bold italic">
+                      Student already has an account. To change password, go to their full profile.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Identity & Status</h3>
@@ -530,6 +659,19 @@ const StudentModal: React.FC<{
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Joining Date</label>
                   <input required type="date" className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 focus:ring-2 focus:ring-amber-500 transition-all" value={formData.joiningDate} onChange={e => setFormData({...formData, joiningDate: e.target.value})} />
                 </div>
+              </div>
+              {/* Meeting Link Field */}
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1 flex items-center gap-2">
+                  <Video size={12} className="text-amber-500" /> Virtual Classroom (Meeting Link)
+                </label>
+                <input 
+                  type="url" 
+                  placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                  className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 focus:ring-2 focus:ring-amber-500 transition-all font-bold text-slate-600" 
+                  value={formData.meetingLink} 
+                  onChange={e => setFormData({...formData, meetingLink: e.target.value})} 
+                />
               </div>
             </div>
 

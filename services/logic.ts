@@ -1,5 +1,5 @@
 
-import { Student, ClassSession, AttendanceRecord } from '../types';
+import { Student, ClassSession, AttendanceRecord, Homework } from '../types';
 import { dbService } from './db';
 
 export const academyLogic = {
@@ -62,7 +62,7 @@ export const academyLogic = {
     }
   },
 
-  processAttendance: async (session: ClassSession, targetStudentId: string, present: boolean) => {
+  processAttendance: async (session: ClassSession, targetStudentId: string, present: boolean, homework?: { message: string, link: string }) => {
     const students = await dbService.getStudents();
     const student = students.find(s => s.id === targetStudentId);
     
@@ -91,6 +91,24 @@ export const academyLogic = {
       }
       
       await dbService.saveStudent(student);
+
+      // Save Homework if provided
+      if (homework && (homework.message || homework.link)) {
+        const newHomework: Homework = {
+          id: `hw_auto_${Math.random().toString(36).substr(2, 9)}`,
+          studentId: student.id,
+          title: `Homework: ${session.topic || 'Class Review'}`,
+          description: homework.message || 'No specific instructions provided.',
+          dueDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0], // Default 1 week
+          status: 'pending',
+          level: student.level
+        };
+        // We could also store the link in description or a new field
+        if (homework.link) {
+          newHomework.description += `\n\nResource: ${homework.link}`;
+        }
+        await dbService.saveHomework(newHomework);
+      }
       
       return {
         completedTopic: session.topic,

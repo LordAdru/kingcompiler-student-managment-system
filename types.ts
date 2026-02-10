@@ -2,7 +2,7 @@
 export type BillingType = 'monthly' | 'per_class';
 export type FeeStatus = 'paid' | 'due' | 'blocked';
 export type SessionStatus = 'upcoming' | 'completed' | 'cancelled';
-export type UserRole = 'admin' | 'collaborator';
+export type UserRole = 'admin' | 'collaborator' | 'student';
 export type StudentStatus = 'active' | 'break';
 
 export interface AppUser {
@@ -10,18 +10,22 @@ export interface AppUser {
   email: string | null;
   role: UserRole;
   displayName?: string;
+  studentId?: string; // Links user to a student record if role is 'student'
 }
 
 export interface Student {
   id: string;
   fullName: string;
+  email?: string; // Added for student login matching
   age: number;
   whatsappNumber?: string;
+  meetingLink?: string; // New: Google Meet / Zoom link
   course: string;
   level: string;
   joiningDate: string;
-  collaboratorId?: string; // ID of the partner who referred the student
-  status: StudentStatus; // Added status field
+  collaboratorId?: string;
+  status: StudentStatus;
+  paymentRequested?: boolean; // New: Flag for when student says they paid
   billing: {
     type: BillingType;
     feeAmount: number;
@@ -31,6 +35,34 @@ export interface Student {
   };
   currentTopicIndex: number;
   assignedTopics: string[];
+}
+
+export interface LibraryResource {
+  id: string;
+  title: string;
+  category: string;
+  url: string;
+  coverImageUrl?: string; // New: Support for cover images
+  type: 'pdf' | 'link' | 'video';
+  addedDate: string;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  priority: 'low' | 'medium' | 'high';
+}
+
+export interface Homework {
+  id: string;
+  studentId?: string; // If specific to a student
+  level?: string; // If specific to a level
+  title: string;
+  description: string;
+  dueDate: string;
+  status: 'pending' | 'submitted' | 'reviewed';
 }
 
 export interface GroupBatch {
@@ -48,7 +80,7 @@ export interface ClassSchedule {
   studentName?: string;
   groupId?: string;
   groupName?: string;
-  collaboratorId?: string; // Filter for collaborator users
+  collaboratorId?: string;
   days: number[];
   startTime: string;
   endTime: string;

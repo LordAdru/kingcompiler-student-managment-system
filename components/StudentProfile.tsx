@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { dbService } from '../services/db';
+import { authService } from '../services/auth';
 import { Student, ClassSchedule, AttendanceRecord, StudentStatus } from '../types';
 import { ScheduleModal } from './ScheduleModal';
 import { format } from 'date-fns';
@@ -24,7 +25,15 @@ import {
   Phone,
   Moon,
   Zap,
-  Coffee
+  Coffee,
+  Key,
+  ShieldCheck,
+  HandCoins,
+  Handshake,
+  Mail,
+  Send,
+  Video,
+  ExternalLink
 } from 'lucide-react';
 
 interface ProfileProps {
@@ -42,6 +51,7 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
   const [editingSchedule, setEditingSchedule] = useState<ClassSchedule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const fetchProfileData = async () => {
     setIsLoading(true);
@@ -64,6 +74,21 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
     fetchProfileData();
   }, [studentId]);
 
+  const handleResetPassword = async () => {
+    if (!student?.email) return;
+    if (!confirm(`Send password reset link to ${student.email}?`)) return;
+    
+    setIsResetting(true);
+    try {
+      await authService.sendResetEmail(student.email);
+      alert(`Instructions have been sent to ${student.email}.`);
+    } catch (err: any) {
+      alert("Failed to send reset email: " + err.message);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const masterSyllabus = useMemo(() => {
     if (!student) return [];
     return LEVEL_TOPICS.find(lt => lt.level === student.level)?.topics || [];
@@ -72,7 +97,6 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
   const toggleBreakStatus = async () => {
     if (!student) return;
     setIsUpdatingStatus(true);
-    // Explicitly type the literal values to avoid string-widening issues
     const updatedStatus: StudentStatus = student.status === 'break' ? 'active' : 'break';
     const updatedStudent: Student = { ...student, status: updatedStatus };
     
@@ -150,12 +174,49 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
             <div className="space-y-4">
               <InfoRow icon={User} label="Age" value={`${student.age} Years`} />
               <InfoRow icon={Phone} label="WhatsApp" value={student.whatsappNumber || 'Not provided'} />
+              {student.meetingLink && (
+                 <InfoRow 
+                  icon={Video} 
+                  label="Virtual Classroom" 
+                  value="Launch Live Session" 
+                  actionIcon={ExternalLink} 
+                  onAction={() => window.open(student.meetingLink, '_blank')}
+                  isLink
+                />
+              )}
               <InfoRow icon={BookOpen} label="Enrolled Course" value={student.course} />
               <InfoRow icon={Calendar} label="Member Since" value={student.joiningDate} />
               <InfoRow icon={Activity} label="Active Lesson" value={currentTopic} />
             </div>
 
-            <div className="mt-8 pt-8 border-t border-slate-50">
+            <div className="mt-8 pt-8 border-t border-slate-50 space-y-3">
+              {student.email ? (
+                <div className="space-y-3">
+                  <div className="p-4 rounded-2xl bg-slate-900 text-white border border-slate-800 flex items-center gap-4">
+                    <div className="p-2 bg-amber-500 rounded-lg text-slate-900">
+                       <ShieldCheck size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Portal Active</p>
+                      <p className="text-xs font-bold truncate">{student.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleResetPassword}
+                    disabled={isResetting}
+                    className="w-full py-4 bg-amber-500 text-slate-950 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 hover:bg-amber-400"
+                  >
+                    {isResetting ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                    Reset Password
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 flex items-center gap-4">
+                  <Key size={16} />
+                  <p className="text-[10px] font-black uppercase tracking-widest">No Access Enabled</p>
+                </div>
+              )}
+
               <button
                 onClick={toggleBreakStatus}
                 disabled={isUpdatingStatus}
@@ -391,14 +452,24 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
   );
 };
 
-const InfoRow: React.FC<{ icon: any, label: string, value: string }> = ({ icon: Icon, label, value }) => (
-  <div className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 transition-colors">
-    <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:text-amber-500 transition-colors">
-      <Icon size={18} />
+const InfoRow: React.FC<{ 
+  icon: any, 
+  label: string, 
+  value: string, 
+  actionIcon?: any, 
+  onAction?: () => void,
+  isLink?: boolean
+}> = ({ icon: Icon, label, value, actionIcon: ActionIcon, onAction, isLink }) => (
+  <div className={`flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors ${isLink ? 'cursor-pointer group/link' : ''}`} onClick={onAction}>
+    <div className="flex items-center gap-4">
+      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:text-amber-500 transition-colors">
+        <Icon size={18} />
+      </div>
+      <div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{label}</p>
+        <p className={`font-bold ${isLink ? 'text-amber-600 underline' : 'text-slate-800'}`}>{value}</p>
+      </div>
     </div>
-    <div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{label}</p>
-      <p className="font-bold text-slate-800">{value}</p>
-    </div>
+    {ActionIcon && <ActionIcon size={16} className="text-slate-300 group-hover/link:text-amber-500 transition-colors" />}
   </div>
 );

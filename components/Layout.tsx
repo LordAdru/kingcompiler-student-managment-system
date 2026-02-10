@@ -10,7 +10,10 @@ import {
   Layers,
   Handshake,
   Menu,
-  X
+  X,
+  Bell,
+  Library,
+  ClipboardList
 } from 'lucide-react';
 import { dbService } from '../services/db';
 import { AppUser } from '../types';
@@ -40,6 +43,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onNavigate, curr
         ...baseItems,
         { id: 'groups', label: 'Batches', icon: Layers },
         { id: 'partners', label: 'Partners', icon: Handshake },
+        { id: 'homework-admin', label: 'Assignments', icon: ClipboardList },
+        { id: 'library', label: 'Library', icon: Library },
+        { id: 'announcements', label: 'Broadcasts', icon: Bell },
         { id: 'curriculum', label: 'Curriculum', icon: BookOpen },
       ];
     }

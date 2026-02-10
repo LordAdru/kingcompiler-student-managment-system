@@ -9,7 +9,12 @@ import {
   Users,
   UserCheck,
   UserX,
-  Plus
+  Plus,
+  Link as LinkIcon,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  X
 } from 'lucide-react';
 import { ClassSession, Student, GroupBatch } from '../types';
 import { dbService } from '../services/db';
@@ -17,7 +22,7 @@ import { dbService } from '../services/db';
 interface AttendanceModalProps {
   session: ClassSession;
   onClose: () => void;
-  onMarkAttendance: (studentId: string, present: boolean) => void;
+  onMarkAttendance: (studentId: string, present: boolean, homework?: { message: string, link: string }) => void;
   onFinalize: () => void;
 }
 
@@ -26,6 +31,8 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
   const [group, setGroup] = useState<GroupBatch | null>(null);
   const [attendanceMap, setAttendanceMap] = useState<Record<string, boolean>>({});
   const [processedMap, setProcessedMap] = useState<Record<string, boolean>>({});
+  const [homeworkData, setHomeworkData] = useState<Record<string, { message: string, link: string }>>({});
+  const [expandedHw, setExpandedHw] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -49,95 +56,169 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
   }, [session]);
 
   const handleToggle = (studentId: string, present: boolean) => {
-    onMarkAttendance(studentId, present);
+    const hw = present ? homeworkData[studentId] : undefined;
+    onMarkAttendance(studentId, present, hw);
     setAttendanceMap(prev => ({ ...prev, [studentId]: present }));
     setProcessedMap(prev => ({ ...prev, [studentId]: true }));
+    
+    // Automatically expand homework if present is selected
+    if (present) {
+      setExpandedHw(prev => ({ ...prev, [studentId]: true }));
+    }
+  };
+
+  const updateHomework = (studentId: string, field: 'message' | 'link', value: string) => {
+    const newData = {
+      ...(homeworkData[studentId] || { message: '', link: '' }),
+      [field]: value
+    };
+    setHomeworkData(prev => ({ ...prev, [studentId]: newData }));
+    
+    // If student is already marked present, update the record immediately
+    if (attendanceMap[studentId]) {
+      onMarkAttendance(studentId, true, newData);
+    }
   };
 
   const isBatch = !!session.groupId;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[90vh]">
-        <div className={`p-10 ${session.status === 'completed' ? 'bg-slate-100 text-slate-800' : 'bg-slate-900 text-white'} relative shrink-0`}>
-          <button onClick={onClose} className="absolute top-8 right-8 opacity-40 hover:opacity-100 transition-opacity">
-            <XCircle size={32} />
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[100] flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-[#0f172a] rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[95vh] border border-white/10">
+        
+        {/* Header Section - Matches provided image style */}
+        <div className="p-8 sm:p-10 relative shrink-0">
+          <button onClick={onClose} className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors p-2 bg-white/5 rounded-full">
+            <X size={24} />
           </button>
           
-          <div className="flex items-center gap-5 mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500 flex items-center justify-center font-black text-white shadow-lg shadow-amber-500/30">
-              {isBatch ? <Users size={32}/> : <Plus size={32}/>}
+          <div className="flex items-center gap-5 mb-10">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+              <Plus size={32} />
             </div>
             <div>
-              <h2 className="text-2xl font-black truncate max-w-[300px]">{isBatch ? session.groupName : session.studentName}</h2>
-              <p className="opacity-60 text-sm font-bold tracking-wide uppercase">{isBatch ? 'Group Batch' : 'Private Session'}</p>
+              <h2 className="text-3xl font-black text-white truncate max-w-[300px] tracking-tight">
+                {isBatch ? session.groupName : session.studentName}
+              </h2>
+              <p className="text-slate-400 text-xs font-bold tracking-[0.2em] uppercase">
+                {isBatch ? 'BATCH SESSION' : 'PRIVATE SESSION'}
+              </p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Time Slot</p>
-              <p className="font-bold text-sm">
+            <div className="bg-white/5 border border-white/5 rounded-[1.5rem] p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1">Time Slot</p>
+              <p className="text-white font-black text-sm">
                 {format(new Date(session.start), 'EEE, HH:mm')} - {format(new Date(session.end), 'HH:mm')}
               </p>
             </div>
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Status</p>
-              <p className="font-bold text-sm uppercase">{session.status}</p>
+            <div className="bg-white/5 border border-white/5 rounded-[1.5rem] p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-1">Status</p>
+              <p className="text-amber-500 font-black text-sm uppercase tracking-widest">{session.status}</p>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-10 space-y-8">
-          <div className="space-y-3">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <Info size={14} className="text-amber-500"/> Enrolled Students
-            </h3>
+        {/* Content Section */}
+        <div className="flex-1 overflow-y-auto p-8 sm:p-10 pt-0 space-y-8 bg-white rounded-t-[3rem]">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pt-6">
+              <div className="w-1 h-4 bg-amber-500 rounded-full"></div>
+              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                ENROLLED STUDENTS
+              </h3>
+            </div>
             
-            <div className="space-y-3">
+            <div className="space-y-4">
               {isLoading ? (
-                 <p className="text-center py-4 text-slate-400 animate-pulse">Fetching members...</p>
+                 <div className="flex flex-col items-center justify-center py-10 gap-3">
+                   <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accessing records...</p>
+                 </div>
               ) : students.map((s) => {
                 const hasProcessed = processedMap[s.id];
                 const isPresent = attendanceMap[s.id];
+                const isExpanded = expandedHw[s.id];
                 const remaining = s.billing.totalClassesAllowed - s.billing.classesAttended;
                 const isDue = s.billing.feeStatus === 'due' || remaining <= 1;
 
                 return (
-                  <div key={s.id} className={`p-5 rounded-3xl border transition-all flex items-center justify-between ${
-                    hasProcessed ? (isPresent ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200') : 'bg-slate-50 border-slate-100'
+                  <div key={s.id} className={`rounded-[2rem] border transition-all overflow-hidden ${
+                    hasProcessed ? (isPresent ? 'bg-emerald-50/30 border-emerald-100' : 'bg-red-50/30 border-red-100') : 'bg-slate-50 border-slate-100'
                   }`}>
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center font-black text-slate-400">
-                        {s.fullName.charAt(0)}
+                    <div className="p-5 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center font-black text-slate-300 shadow-sm">
+                          {s.fullName.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-slate-800 flex items-center gap-2">
+                            {s.fullName}
+                            {isDue && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Payment Warning"/>}
+                          </p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">SESSIONS: {s.billing.classesAttended}/{s.billing.totalClassesAllowed}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-black text-slate-800 flex items-center gap-2">
-                          {s.fullName}
-                          {isDue && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Payment Warning"/>}
-                        </p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">Sessions: {s.billing.classesAttended}/{s.billing.totalClassesAllowed}</p>
-                      </div>
-                    </div>
 
-                    {session.status === 'upcoming' && (
                       <div className="flex gap-2">
                         <button 
                           onClick={() => handleToggle(s.id, false)}
-                          className={`p-3 rounded-xl transition-all ${!isPresent && hasProcessed ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-white text-slate-300 hover:text-red-500 hover:border-red-200 border border-slate-100'}`}
+                          className={`p-3 rounded-xl transition-all ${!isPresent && hasProcessed ? 'bg-red-500 text-white shadow-lg' : 'bg-white text-slate-300 border border-slate-200 hover:text-red-500'}`}
                         >
-                          <UserX size={18} />
+                          <UserX size={20} />
                         </button>
                         <button 
                           onClick={() => handleToggle(s.id, true)}
-                          className={`p-3 rounded-xl transition-all ${isPresent && hasProcessed ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-white text-slate-300 hover:text-emerald-500 hover:border-emerald-200 border border-slate-100'}`}
+                          className={`p-3 rounded-xl transition-all ${isPresent && hasProcessed ? 'bg-emerald-500 text-white shadow-lg' : 'bg-white text-slate-300 border border-slate-200 hover:text-emerald-500'}`}
                         >
-                          <UserCheck size={18} />
+                          <UserCheck size={20} />
                         </button>
                       </div>
-                    )}
-                    {session.status === 'completed' && (
-                       <span className="text-[10px] font-black uppercase text-slate-400">Attendance Archived</span>
+                    </div>
+
+                    {/* Homework Section for Present Students */}
+                    {isPresent && (
+                      <div className="px-5 pb-5 animate-in slide-in-from-top-2 duration-300">
+                        <button 
+                          onClick={() => setExpandedHw(prev => ({ ...prev, [s.id]: !isExpanded }))}
+                          className="w-full flex items-center justify-between py-2 text-[10px] font-black text-slate-500 uppercase tracking-widest border-t border-slate-200/50 mt-2"
+                        >
+                          <span className="flex items-center gap-2"><Plus size={12}/> Assign Homework</span>
+                          {isExpanded ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                        </button>
+                        
+                        {isExpanded && (
+                          <div className="space-y-4 pt-4">
+                            <div className="space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Resource Link / PDF / Img</label>
+                              <div className="relative">
+                                <LinkIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input 
+                                  type="text" 
+                                  placeholder="Paste link to book/image..."
+                                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500/20"
+                                  value={homeworkData[s.id]?.link || ''}
+                                  onChange={e => updateHomework(s.id, 'link', e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Assignment Message</label>
+                              <div className="relative">
+                                <MessageSquare size={14} className="absolute left-3 top-3 text-slate-400" />
+                                <textarea 
+                                  rows={2}
+                                  placeholder="What should the student do?"
+                                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500/20 resize-none"
+                                  value={homeworkData[s.id]?.message || ''}
+                                  onChange={e => updateHomework(s.id, 'message', e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
@@ -146,13 +227,15 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
           </div>
         </div>
 
+        {/* Footer Action */}
         {session.status === 'upcoming' && (
-          <div className="p-8 bg-slate-50 border-t border-slate-100">
+          <div className="p-8 bg-white border-t border-slate-100 shrink-0">
              <button 
                onClick={onFinalize}
-               className="w-full py-5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+               className="w-full py-6 bg-[#0f172a] hover:bg-slate-800 text-white rounded-[1.8rem] font-black uppercase text-xs tracking-[0.3em] shadow-2xl shadow-slate-950/40 active:scale-95 transition-all flex items-center justify-center gap-4"
              >
-               <CheckCircle2 size={18} /> Finalize Session
+               <CheckCircle2 size={24} /> 
+               FINALIZE SESSION
              </button>
           </div>
         )}

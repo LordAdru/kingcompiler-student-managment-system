@@ -60,9 +60,9 @@ export const CalendarView: React.FC = () => {
     };
   });
 
-  const handleAttendance = async (studentId: string, present: boolean) => {
+  const handleAttendance = async (studentId: string, present: boolean, homework?: { message: string, link: string }) => {
     if (!selectedSession) return;
-    const result = await academyLogic.processAttendance(selectedSession, studentId, present);
+    const result = await academyLogic.processAttendance(selectedSession, studentId, present, homework);
     if (result?.warning) {
       console.log(result.warning);
     }

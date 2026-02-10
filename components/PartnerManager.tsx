@@ -63,7 +63,7 @@ export const PartnerManager: React.FC = () => {
 
   const handleCreateAccount = async (email: string, pass: string, name: string) => {
     try {
-      await authService.adminCreatePartnerAccount(email, pass, name);
+      await authService.adminCreateUserAccount(email, pass, name, 'collaborator');
       await fetchData();
       setIsCredsModalOpen(false);
       alert(`Success! Login credentials for ${email} have been generated.`);

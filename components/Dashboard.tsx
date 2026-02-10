@@ -27,7 +27,8 @@ import {
   Upload,
   Link as LinkIcon,
   Play,
-  Trash2
+  Trash2,
+  HandCoins
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { Student, ClassSession, GroupBatch } from '../types';
@@ -48,35 +49,66 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const [isOverdueModalOpen, setIsOverdueModalOpen] = useState(false);
   const [isAlarmSettingsOpen, setIsAlarmSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showRevenue, setShowRevenue] = useState(false);
   const [agendaView, setAgendaView] = useState<'today' | 'tomorrow'>('today');
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
   const isAdmin = auth.currentUser?.email?.toLowerCase() === 'kingcompiler.official@gmail.com';
 
   const fetchInitialData = async () => {
-    setIsLoading(true);
-    setError(null);
+    // Stage 1: Load from Cache (Immediate)
+    const cachedStudents = await dbService.getStudents(true);
+    const cachedSessions = await dbService.getSessions(true);
+    const cachedGroups = await dbService.getGroups(true);
+    
+    setStudents(cachedStudents);
+    setSessions(cachedSessions);
+    setGroups(cachedGroups);
+    setIsLoading(false);
+
+    // Stage 2: Background Refresh (Silent)
+    setIsSyncing(true);
     try {
       const [sData, sessData, gData] = await Promise.all([
-        dbService.getStudents(),
-        dbService.getSessions(),
-        dbService.getGroups()
+        dbService.getStudents(false),
+        dbService.getSessions(false),
+        dbService.getGroups(false)
       ]);
-      setStudents(sData || []);
-      setSessions(sessData || []);
-      setGroups(gData || []);
+      setStudents(sData);
+      setSessions(sessData);
+      setGroups(gData);
     } catch (err: any) {
-      console.error("Failed to load dashboard data:", err);
-      setError(err.message || "Could not connect to database.");
+      console.error("Dashboard Background Sync Failed:", err);
     } finally {
-      setIsLoading(false);
+      setIsSyncing(false);
     }
   };
 
   useEffect(() => {
     fetchInitialData();
   }, []);
+
+  const pendingPayments = useMemo(() => 
+    students.filter(s => s.paymentRequested), 
+  [students]);
+
+  const handleConfirmPayment = async (student: Student) => {
+    setIsUpdating(student.id);
+    const updatedStudent: Student = {
+      ...student,
+      paymentRequested: false,
+      billing: {
+        ...student.billing,
+        classesAttended: 0,
+        feeStatus: 'paid'
+      }
+    };
+    await dbService.saveStudent(updatedStudent);
+    await fetchInitialData();
+    setIsUpdating(null);
+  };
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const tomorrowStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
@@ -186,9 +218,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
     },
   ];
 
-  const handleAttendance = async (studentId: string, present: boolean) => {
+  const handleAttendance = async (studentId: string, present: boolean, homework?: { message: string, link: string }) => {
     if (!selectedSession) return;
-    await academyLogic.processAttendance(selectedSession, studentId, present);
+    await academyLogic.processAttendance(selectedSession, studentId, present, homework);
   };
 
   const handleFinalize = async () => {
@@ -202,7 +234,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
     return (
       <div className="h-[60vh] flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">Syncing Academy Engine...</p>
+        <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">Waking Academy Cache...</p>
       </div>
     );
   }
@@ -216,8 +248,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
             <Logo size="md" className="mb-4 lg:mb-6" />
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full">
-                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                <p className="text-emerald-400 font-black text-[9px] uppercase tracking-[0.2em]">Connected</p>
+                <div className={`h-2 w-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-spin' : 'bg-emerald-500 animate-pulse'}`}></div>
+                <p className="text-emerald-400 font-black text-[9px] uppercase tracking-[0.2em]">
+                   {isSyncing ? 'Syncing...' : 'Live Connected'}
+                </p>
               </div>
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isAdmin ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
                 {isAdmin ? <ShieldCheck size={12}/> : <UserCheck size={12}/>}
@@ -241,6 +275,44 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
           </div>
         </div>
       </div>
+
+      {/* Payment Requests Warning Section */}
+      {pendingPayments.length > 0 && (
+        <div className="bg-emerald-50 border-2 border-emerald-100 rounded-[2.5rem] p-8 lg:p-10 animate-in bounce-in">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-3 bg-emerald-500 text-white rounded-2xl shadow-lg shadow-emerald-500/20">
+              <HandCoins size={24} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-slate-800">Payment Approvals Required</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Verify and reset class counts</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendingPayments.map(s => (
+              <div key={s.id} className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm flex items-center justify-between group">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black">
+                    {s.fullName.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="font-black text-slate-800 text-sm leading-none mb-1">{s.fullName}</p>
+                    <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Paid Claimed</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => handleConfirmPayment(s)}
+                  disabled={isUpdating === s.id}
+                  className="p-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all shadow-md active:scale-90 disabled:opacity-50"
+                  title="Confirm Payment & Reset Count"
+                >
+                  {isUpdating === s.id ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {cards.map((card, i) => (
@@ -378,7 +450,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
              <div className="p-5 bg-slate-900 rounded-2xl flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-black text-white uppercase tracking-widest leading-none mb-1">Academy Engine</p>
-                  <p className="text-[9px] font-bold text-slate-500 uppercase">Version 2.5 Active</p>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase">Hybrid Cache Active</p>
                 </div>
                 <div className="h-3 w-3 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/40"></div>
              </div>
@@ -415,230 +487,159 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   );
 };
 
-const AlarmSettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const [currentSound, setCurrentSound] = useState<string | null>(localStorage.getItem('academy_custom_alarm'));
-  const [urlInput, setUrlInput] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+// Helper component for Dashboard quick actions
+const QuickAction: React.FC<{ icon: any, title: string, onClick: () => void }> = ({ icon: Icon, title, onClick }) => (
+  <button 
+    onClick={onClick}
+    className="w-full flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-amber-200 hover:bg-amber-50 transition-all group"
+  >
+    <div className="flex items-center gap-3">
+      <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-amber-500 group-hover:text-white transition-all">
+        <Icon size={18} />
+      </div>
+      <span className="text-xs font-black text-slate-700 uppercase tracking-widest">{title}</span>
+    </div>
+    <ChevronRight size={16} className="text-slate-300 group-hover:translate-x-1 transition-transform" />
+  </button>
+);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+// Helper component to display overdue students
+const OverduePaymentsModal: React.FC<{ 
+  students: Student[], 
+  onClose: () => void, 
+  onViewProfile: (id: string) => void 
+}> = ({ students, onClose, onViewProfile }) => (
+  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+    <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+      <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800">Overdue Payments</h2>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Students with 'Due' status</p>
+        </div>
+        <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all">
+          <X size={24} className="text-slate-400" />
+        </button>
+      </div>
+      <div className="p-8 max-h-[60vh] overflow-y-auto space-y-4">
+        {students.map(s => (
+          <div key={s.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black">
+                {s.fullName.charAt(0)}
+              </div>
+              <div>
+                <p className="font-black text-slate-800 text-sm">{s.fullName}</p>
+                <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Fee Due</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => onViewProfile(s.id)}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+            >
+              Profile
+            </button>
+          </div>
+        ))}
+        {students.length === 0 && (
+          <p className="text-center py-10 text-slate-400 font-bold uppercase tracking-widest text-xs">No overdue payments found</p>
+        )}
+      </div>
+      <div className="p-8 bg-slate-50/50 border-t border-slate-100">
+        <button onClick={onClose} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Close</button>
+      </div>
+    </div>
+  </div>
+);
+
+// Helper component for alarm sound configuration
+const AlarmSettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const [customAlarm, setCustomAlarm] = useState<string | null>(localStorage.getItem('academy_custom_alarm'));
+
+  const handleTest = () => {
+    academyLogic.playAcademyChime();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        academyLogic.setCustomAlarm(base64);
-        setCurrentSound(base64);
+        const result = event.target?.result as string;
+        academyLogic.setCustomAlarm(result);
+        setCustomAlarm(result);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleUrlSave = () => {
-    if (urlInput.trim()) {
-      academyLogic.setCustomAlarm(urlInput.trim());
-      setCurrentSound(urlInput.trim());
-      setUrlInput('');
-    }
-  };
-
-  const resetToDefault = () => {
+  const clearAlarm = () => {
     academyLogic.setCustomAlarm(null);
-    setCurrentSound(null);
-  };
-
-  const testSound = () => {
-    academyLogic.playAcademyChime();
+    setCustomAlarm(null);
   };
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
       <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in duration-300">
         <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-amber-500 rounded-2xl text-slate-900">
-              <Settings size={24} />
-            </div>
-            <div>
-              <h2 className="text-xl font-black text-slate-800">Alarm Configuration</h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Custom Audio Engine</p>
-            </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-800">Alarm Settings</h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Class Reminders</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all shadow-sm">
+          <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all">
             <X size={24} className="text-slate-400" />
           </button>
         </div>
-
         <div className="p-8 space-y-6">
-          <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col items-center text-center">
-             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-amber-500 shadow-sm mb-4">
-               {currentSound ? <Volume2 size={32} /> : <Bell size={32} className="opacity-20" />}
-             </div>
-             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Current Status</p>
-             <p className="text-sm font-bold text-slate-800 mb-4">
-               {currentSound ? 'Custom Sound Active' : 'Professional Synth (Default)'}
-             </p>
-             <button 
-               onClick={testSound}
-               className="px-8 py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-800 transition-all"
-             >
-               <Play size={14} /> Test Alarm
-             </button>
+          <div className="p-6 bg-slate-900 rounded-[2rem] text-white space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500 rounded-lg text-slate-900">
+                  <Volume2 size={20} />
+                </div>
+                <h4 className="font-black text-sm uppercase tracking-widest">Test Chime</h4>
+              </div>
+              <button 
+                onClick={handleTest}
+                className="p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+              >
+                <Play size={16} fill="currentColor" />
+              </button>
+            </div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">
+              Click play to verify audio output works on this device.
+            </p>
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Source Selection</h4>
-            <div className="grid grid-cols-1 gap-3">
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center justify-between p-4 bg-white border border-slate-100 hover:border-amber-400 rounded-2xl transition-all text-left group"
-              >
-                <div className="flex items-center gap-3">
-                  <Upload size={18} className="text-slate-400 group-hover:text-amber-500" />
-                  <span className="text-xs font-bold text-slate-700">Upload MP3/WAV File</span>
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Custom Sound Source</h3>
+            <div className="flex items-center gap-4">
+              <label className="flex-1 cursor-pointer">
+                <div className="flex items-center justify-center gap-3 p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl hover:border-amber-400 hover:bg-amber-50 transition-all text-slate-500 font-bold text-xs uppercase">
+                  <Upload size={18} /> {customAlarm ? 'Update Audio' : 'Upload Audio'}
                 </div>
-                <ArrowRight size={14} className="text-slate-200 group-hover:text-amber-500" />
-              </button>
-              <input type="file" ref={fileInputRef} className="hidden" accept="audio/*" onChange={handleFileUpload} />
-
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                  <LinkIcon size={16} />
-                </div>
-                <input 
-                  type="text" 
-                  placeholder="Paste audio URL..." 
-                  className="w-full pl-12 pr-16 py-4 bg-white border border-slate-100 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500/20"
-                  value={urlInput}
-                  onChange={e => setUrlInput(e.target.value)}
-                />
+                <input type="file" className="hidden" accept="audio/*" onChange={handleFileChange} />
+              </label>
+              {customAlarm && (
                 <button 
-                  onClick={handleUrlSave}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all"
+                  onClick={clearAlarm}
+                  className="p-4 bg-red-50 text-red-500 border border-red-100 rounded-2xl hover:bg-red-100 transition-all"
+                  title="Remove Custom Sound"
                 >
-                  <CheckCircle2 size={16} />
+                  <Trash2 size={18} />
                 </button>
-              </div>
+              )}
             </div>
+            {customAlarm && (
+              <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2 px-1">
+                <CheckCircle2 size={12} /> Custom Alarm Active
+              </p>
+            )}
           </div>
-
-          {currentSound && (
-            <button 
-              onClick={resetToDefault}
-              className="w-full flex items-center justify-center gap-2 py-4 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 rounded-2xl transition-all"
-            >
-              <Trash2 size={14} /> Clear Custom Sound
-            </button>
-          )}
         </div>
-
-        <div className="p-8 bg-slate-50 border-t border-slate-100">
-          <button 
-            onClick={onClose}
-            className="w-full py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-50 transition-all"
-          >
-            Acknowledge Settings
-          </button>
+        <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4">
+          <button onClick={onClose} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Close</button>
         </div>
       </div>
     </div>
   );
 };
-
-const OverduePaymentsModal: React.FC<{ 
-  students: Student[], 
-  onClose: () => void, 
-  onViewProfile: (id: string) => void 
-}> = ({ students, onClose, onViewProfile }) => {
-  const totalOutstanding = students.reduce((sum, s) => sum + (s.billing?.feeAmount || 0), 0);
-
-  return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-300 max-h-[85vh] flex flex-col">
-        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-red-100 text-red-600 rounded-2xl">
-              <AlertCircle size={24} />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Overdue Payments</h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Pending Collections</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all shadow-sm">
-            <X size={24} className="text-slate-400" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-8 space-y-4">
-          {students.length === 0 ? (
-            <div className="py-20 text-center">
-              <CheckCircle2 size={48} className="mx-auto text-emerald-500 mb-4 opacity-20" />
-              <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">All accounts are up to date.</p>
-            </div>
-          ) : (
-            students.map((student) => (
-              <div 
-                key={student.id} 
-                className="flex items-center justify-between p-6 bg-slate-50 rounded-[2rem] border border-slate-100 hover:border-red-200 transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center font-black text-slate-400 shadow-sm group-hover:bg-red-50 group-hover:text-red-600 transition-all">
-                    {student.fullName.charAt(0)}
-                  </div>
-                  <div>
-                    <h4 className="font-black text-slate-800 text-sm leading-none mb-1">{student.fullName}</h4>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      {student.course} • {student.billing.classesAttended}/{student.billing.totalClassesAllowed} Classes
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-right">
-                    <p className="text-lg font-black text-red-600 leading-none mb-1">${student.billing.feeAmount}</p>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">UNPAID FEE</p>
-                  </div>
-                  <button 
-                    onClick={() => onViewProfile(student.id)}
-                    className="p-3 bg-white hover:bg-red-600 hover:text-white text-slate-400 border border-slate-200 rounded-2xl transition-all group/btn"
-                  >
-                    <ChevronRight size={18} className="group-hover/btn:translate-x-0.5 transition-transform" />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="p-8 bg-slate-900 text-white flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-xl">
-              <CreditCard size={20} className="text-amber-500" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Total Outstanding</p>
-              <p className="text-2xl font-black text-white leading-none">${totalOutstanding.toLocaleString()}</p>
-            </div>
-          </div>
-          <button 
-            onClick={onClose}
-            className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all"
-          >
-            Acknowledge
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const QuickAction: React.FC<{ icon: any, title: string, onClick: () => void }> = ({ icon: Icon, title, onClick }) => (
-  <button onClick={onClick} className="w-full flex items-center justify-between p-5 rounded-2xl border border-slate-50 hover:border-slate-900 hover:bg-slate-900 hover:text-white transition-all duration-300 group">
-    <div className="flex items-center gap-4">
-      <div className="p-2.5 bg-slate-50 rounded-xl group-hover:bg-white/10 text-slate-400 group-hover:text-amber-500 transition-colors">
-        <Icon size={18} />
-      </div>
-      <p className="font-black text-xs tracking-tight uppercase leading-none">{title}</p>
-    </div>
-    <ArrowRight size={16} className="text-slate-200 group-hover:translate-x-1 transition-all" />
-  </button>
-);
