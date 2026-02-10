@@ -123,8 +123,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
         </button>
       </div>
 
-      {/* View Selector Tabs */}
-      <div className="flex p-1.5 bg-slate-100 rounded-[1.5rem] w-fit">
+      <div className="flex p-1.5 bg-slate-100 rounded-[1.5rem] w-fit overflow-x-auto max-w-full custom-scrollbar">
         <TabButton 
           active={activeTab === 'active'} 
           onClick={() => setActiveTab('active')} 
@@ -210,7 +209,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
 const TabButton = ({ active, onClick, label, count, icon: Icon }: any) => (
   <button 
     onClick={onClick}
-    className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-3 ${
+    className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-3 shrink-0 ${
       active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
     }`}
   >
@@ -460,9 +459,9 @@ const StudentModal: React.FC<{
       alert("Please select at least one day for all schedule slots.");
       return;
     }
-    const finalStudent = {
+    const finalStudent: Student = {
       ...formData,
-      status: formData.status || 'active',
+      status: (formData.status as StudentStatus) || 'active',
       assignedTopics: currentLevelTopics
     } as Student;
     onSave(finalStudent, initialSchedules, deletedScheduleIds);

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { dbService } from '../services/db';
-import { Student, ClassSchedule, AttendanceRecord } from '../types';
+import { Student, ClassSchedule, AttendanceRecord, StudentStatus } from '../types';
 import { ScheduleModal } from './ScheduleModal';
 import { format } from 'date-fns';
 import { LEVEL_TOPICS } from '../constants';
@@ -72,8 +72,10 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
   const toggleBreakStatus = async () => {
     if (!student) return;
     setIsUpdatingStatus(true);
-    const updatedStatus = student.status === 'break' ? 'active' : 'break';
-    const updatedStudent = { ...student, status: updatedStatus };
+    // Explicitly type the literal values to avoid string-widening issues
+    const updatedStatus: StudentStatus = student.status === 'break' ? 'active' : 'break';
+    const updatedStudent: Student = { ...student, status: updatedStatus };
+    
     await dbService.saveStudent(updatedStudent);
     setStudent(updatedStudent);
     setIsUpdatingStatus(false);
