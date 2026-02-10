@@ -77,8 +77,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const tomorrowStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
   const getFilteredAgenda = (targetDateStr: string) => {
+    // Only include students who are NOT on break
+    const activeStudentIds = new Set(students.filter(s => s.status !== 'break').map(s => s.id));
+
     const rawAgenda = sessions
       .filter(s => s.start?.startsWith(targetDateStr))
+      // Suppress sessions for students on break
+      .filter(s => {
+        if (s.studentId && !activeStudentIds.has(s.studentId)) return false;
+        return true;
+      })
       .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
       
     const finalAgenda: ClassSession[] = [];
@@ -109,20 +117,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
     return finalAgenda.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
   };
 
-  const todayAgenda = useMemo(() => getFilteredAgenda(todayStr), [sessions, todayStr, groups]);
-  const tomorrowAgenda = useMemo(() => getFilteredAgenda(tomorrowStr), [sessions, tomorrowStr, groups]);
+  const todayAgenda = useMemo(() => getFilteredAgenda(todayStr), [sessions, todayStr, groups, students]);
+  const tomorrowAgenda = useMemo(() => getFilteredAgenda(tomorrowStr), [sessions, tomorrowStr, groups, students]);
 
   const activeAgenda = agendaView === 'today' ? todayAgenda : tomorrowAgenda;
 
   const stats = useMemo(() => {
-    const overdueList = students.filter(s => s.billing?.feeStatus === 'due');
-    const totalMonthlyRevenue = students.reduce((acc, s) => acc + (s.billing?.feeAmount || 0), 0);
-    const collectedRevenue = students
+    const activeStudents = students.filter(s => s.status === 'active');
+    const overdueList = activeStudents.filter(s => s.billing?.feeStatus === 'due');
+    const totalMonthlyRevenue = activeStudents.reduce((acc, s) => acc + (s.billing?.feeAmount || 0), 0);
+    const collectedRevenue = activeStudents
       .filter(s => s.billing?.feeStatus === 'paid')
       .reduce((acc, s) => acc + (s.billing?.feeAmount || 0), 0);
 
     return {
       totalStudents: students.length,
+      activeCount: activeStudents.length,
       todayCount: todayAgenda.length,
       tomorrowCount: tomorrowAgenda.length,
       feeDue: overdueList.length,

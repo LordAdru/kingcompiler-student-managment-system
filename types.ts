@@ -3,6 +3,7 @@ export type BillingType = 'monthly' | 'per_class';
 export type FeeStatus = 'paid' | 'due' | 'blocked';
 export type SessionStatus = 'upcoming' | 'completed' | 'cancelled';
 export type UserRole = 'admin' | 'collaborator';
+export type StudentStatus = 'active' | 'break';
 
 export interface AppUser {
   uid: string;
@@ -20,6 +21,7 @@ export interface Student {
   level: string;
   joiningDate: string;
   collaboratorId?: string; // ID of the partner who referred the student
+  status: StudentStatus; // Added status field
   billing: {
     type: BillingType;
     feeAmount: number;

@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { dbService } from '../services/db';
-import { Student, ClassSchedule, BillingType, FeeStatus, AppUser } from '../types';
-import { Plus, Search, Trash2, UserPlus, Eye, Edit2, Clock, Calendar, X, ListOrdered, Phone, Share2, CreditCard } from 'lucide-react';
+import { Student, ClassSchedule, BillingType, FeeStatus, AppUser, StudentStatus } from '../types';
+import { Plus, Search, Trash2, UserPlus, Eye, Edit2, Clock, Calendar, X, ListOrdered, Phone, Share2, CreditCard, Moon, UserCheck, Users as UsersIcon } from 'lucide-react';
 import { COURSES, LEVEL_TOPICS } from '../constants';
 
 interface StudentManagerProps {
@@ -19,10 +19,13 @@ const DAYS_OF_WEEK = [
   { label: 'S', value: 6 },
 ];
 
+type FilterTab = 'active' | 'break' | 'all';
+
 export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [collaborators, setCollaborators] = useState<AppUser[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<FilterTab>('active');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,13 +45,27 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
     fetchData();
   }, []);
 
+  const counts = useMemo(() => ({
+    all: students.length,
+    active: students.filter(s => s.status === 'active').length,
+    break: students.filter(s => s.status === 'break').length,
+  }), [students]);
+
   const filteredStudents = useMemo(() => {
-    return students.filter(s => 
-      s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.course.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.whatsappNumber && s.whatsappNumber.includes(searchTerm))
-    );
-  }, [students, searchTerm]);
+    return students.filter(s => {
+      const matchesSearch = 
+        s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.course.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (s.whatsappNumber && s.whatsappNumber.includes(searchTerm));
+      
+      const matchesTab = 
+        activeTab === 'all' || 
+        (activeTab === 'active' && s.status === 'active') ||
+        (activeTab === 'break' && s.status === 'break');
+
+      return matchesSearch && matchesTab;
+    });
+  }, [students, searchTerm, activeTab]);
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure? This will delete the student and all their schedules.')) {
@@ -85,39 +102,64 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-6">
         <div className="relative flex-1 max-w-lg">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
             placeholder="Search directory..."
-            className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-amber-500 outline-none transition-all shadow-sm"
+            className="w-full pl-12 pr-4 py-4 rounded-[1.5rem] border border-slate-200 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all shadow-sm bg-white font-medium"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <button 
           onClick={() => { setEditingStudent(null); setIsModalOpen(true); }}
-          className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-6 py-4 rounded-2xl font-bold transition-all shadow-lg text-sm"
+          className="flex items-center justify-center gap-3 bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-[1.5rem] font-black transition-all shadow-xl shadow-slate-900/10 active:scale-95 text-xs uppercase tracking-widest"
         >
           <UserPlus size={18} />
           Enroll Student
         </button>
       </div>
 
-      <div className="hidden lg:block bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+      {/* View Selector Tabs */}
+      <div className="flex p-1.5 bg-slate-100 rounded-[1.5rem] w-fit">
+        <TabButton 
+          active={activeTab === 'active'} 
+          onClick={() => setActiveTab('active')} 
+          label="Active" 
+          count={counts.active}
+          icon={UserCheck}
+        />
+        <TabButton 
+          active={activeTab === 'break'} 
+          onClick={() => setActiveTab('break')} 
+          label="On Break" 
+          count={counts.break}
+          icon={Moon}
+        />
+        <TabButton 
+          active={activeTab === 'all'} 
+          onClick={() => setActiveTab('all')} 
+          label="All Directory" 
+          count={counts.all}
+          icon={UsersIcon}
+        />
+      </div>
+
+      <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
         {isLoading ? (
           <LoadingState />
         ) : (
           <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
+            <thead className="bg-slate-50/50 border-b border-slate-100">
               <tr>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Info</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollment</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Partner/Source</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Info</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollment</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Partner/Source</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -134,7 +176,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
                   />
                 );
               })}
-              {filteredStudents.length === 0 && <EmptyState />}
+              {filteredStudents.length === 0 && <EmptyState tab={activeTab} />}
             </tbody>
           </table>
         )}
@@ -148,7 +190,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
             {filteredStudents.map((student) => (
               <StudentCard key={student.id} student={student} onSelect={onSelectStudent} onEdit={(s) => { setEditingStudent(s); setIsModalOpen(true); }} onDelete={handleDelete} />
             ))}
-            {filteredStudents.length === 0 && <EmptyState />}
+            {filteredStudents.length === 0 && <EmptyState tab={activeTab} />}
           </>
         )}
       </div>
@@ -165,84 +207,132 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
   );
 };
 
+const TabButton = ({ active, onClick, label, count, icon: Icon }: any) => (
+  <button 
+    onClick={onClick}
+    className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-3 ${
+      active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+    }`}
+  >
+    <Icon size={14} className={active ? 'text-amber-500' : ''} />
+    {label}
+    <span className={`px-2 py-0.5 rounded-md text-[8px] ${active ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-500'}`}>
+      {count}
+    </span>
+  </button>
+);
+
 const LoadingState = () => (
   <div className="p-20 text-center">
-    <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+    <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
     <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Loading records...</p>
   </div>
 );
 
-const EmptyState = () => (
-  <div className="p-20 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">
-    No records found.
+const EmptyState = ({ tab }: { tab: string }) => (
+  <div className="p-24 text-center">
+    <div className="bg-slate-50 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-slate-200">
+      <Search size={40} />
+    </div>
+    <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
+      {tab === 'break' ? 'No students are currently on break' : 
+       tab === 'active' ? 'No active students found' : 
+       'No student records in directory'}
+    </p>
   </div>
 );
 
 const StudentTableRow = ({ student, collaboratorName, onSelect, onEdit, onDelete }: any) => (
-  <tr className="hover:bg-slate-50/50 transition-colors group">
-    <td className="px-8 py-5">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-slate-500 group-hover:bg-amber-100 group-hover:text-amber-600 transition-colors">
-          {student.fullName.charAt(0)}
+  <tr className={`hover:bg-slate-50/50 transition-colors group ${student.status === 'break' ? 'bg-slate-50/20' : ''}`}>
+    <td className="px-8 py-6">
+      <div className="flex items-center gap-5">
+        <div className={`w-12 h-12 rounded-[1rem] flex items-center justify-center font-black transition-all ${
+          student.status === 'break' 
+            ? 'bg-slate-200 text-slate-400' 
+            : 'bg-white border border-slate-100 text-slate-400 group-hover:bg-amber-100 group-hover:border-amber-200 group-hover:text-amber-600 shadow-sm'
+        }`}>
+          {student.status === 'break' ? <Moon size={20} /> : student.fullName.charAt(0)}
         </div>
         <div>
-          <p className="font-bold text-slate-800 leading-tight">{student.fullName}</p>
-          <p className="text-xs text-slate-500 mt-1">Age: {student.age} • Joined {student.joiningDate}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-black text-slate-800 leading-tight">{student.fullName}</p>
+            {student.status === 'break' && (
+              <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest flex items-center gap-1">
+                <Moon size={8} /> Break
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Age: {student.age} • Since {student.joiningDate}</p>
         </div>
       </div>
     </td>
-    <td className="px-8 py-5">
-      <p className="text-sm font-bold text-slate-700">{student.course}</p>
-      <p className="text-[10px] font-black text-slate-400 uppercase mt-1">Lvl: {student.level}</p>
+    <td className="px-8 py-6">
+      <p className="text-sm font-black text-slate-700 tracking-tight">{student.course}</p>
+      <p className="text-[10px] font-black text-slate-400 uppercase mt-1 tracking-widest">Level: {student.level}</p>
     </td>
-    <td className="px-8 py-5">
+    <td className="px-8 py-6">
       <div className="flex items-center gap-2">
         <Share2 size={12} className="text-slate-300" />
-        <p className="text-xs font-bold text-slate-600">{collaboratorName}</p>
+        <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{collaboratorName}</p>
       </div>
     </td>
-    <td className="px-8 py-5">
-      <div className="flex items-center gap-3">
-        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-          student.billing.feeStatus === 'paid' ? 'bg-green-100 text-green-700' : 
-          student.billing.feeStatus === 'due' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
-        }`}>
-          {student.billing.feeStatus}
-        </span>
-      </div>
+    <td className="px-8 py-6">
+      <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+        student.billing.feeStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+        student.billing.feeStatus === 'due' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-slate-50 text-slate-600 border-slate-100'
+      }`}>
+        {student.billing.feeStatus}
+      </span>
     </td>
-    <td className="px-8 py-5">
-      <div className="flex items-center justify-end gap-2">
-        <button onClick={() => onSelect(student.id)} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Eye size={18} /></button>
-        <button onClick={() => onEdit(student)} className="p-2.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"><Edit2 size={18} /></button>
-        <button onClick={() => onDelete(student.id)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={18} /></button>
+    <td className="px-8 py-6">
+      <div className="flex items-center justify-end gap-3">
+        <button onClick={() => onSelect(student.id)} className="p-3 text-slate-400 hover:text-slate-900 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-slate-200"><Eye size={18} /></button>
+        <button onClick={() => onEdit(student)} className="p-3 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all border border-transparent hover:border-amber-100"><Edit2 size={18} /></button>
+        <button onClick={() => onDelete(student.id)} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"><Trash2 size={18} /></button>
       </div>
     </td>
   </tr>
 );
 
 const StudentCard = ({ student, onSelect, onEdit, onDelete }: any) => (
-  <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
+  <div className={`bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6 ${student.status === 'break' ? 'opacity-70' : ''}`}>
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-amber-500 flex items-center justify-center font-black text-white">
-          {student.fullName.charAt(0)}
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black ${
+          student.status === 'break' ? 'bg-slate-200 text-slate-400' : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
+        }`}>
+          {student.status === 'break' ? <Moon size={24} /> : student.fullName.charAt(0)}
         </div>
         <div>
-          <p className="font-bold text-slate-800 leading-tight">{student.fullName}</p>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{student.level}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-black text-slate-900 text-lg leading-tight tracking-tight">{student.fullName}</p>
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{student.level}</p>
         </div>
       </div>
-      <div className="flex gap-2">
-        <button onClick={() => onEdit(student)} className="p-2 text-slate-400"><Edit2 size={18} /></button>
-        <button onClick={() => onDelete(student.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={18} /></button>
+      <div className="flex gap-1">
+        <button onClick={() => onEdit(student)} className="p-3 text-slate-400 hover:bg-slate-50 rounded-xl"><Edit2 size={18} /></button>
+        <button onClick={() => onDelete(student.id)} className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
       </div>
     </div>
+    
+    <div className="flex items-center justify-between px-2">
+      <div className="flex items-center gap-2 text-slate-400">
+        <Clock size={12} />
+        <p className="text-[10px] font-bold uppercase tracking-widest">{student.course}</p>
+      </div>
+      <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
+        student.billing.feeStatus === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+      }`}>
+        {student.billing.feeStatus}
+      </span>
+    </div>
+
     <button 
       onClick={() => onSelect(student.id)}
-      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-slate-900/10 active:scale-[0.98] transition-all"
     >
-      View Full Profile
+      Manage Profile
     </button>
   </div>
 );
@@ -261,6 +351,7 @@ const StudentModal: React.FC<{
     course: COURSES[0],
     level: LEVEL_TOPICS[0].level,
     collaboratorId: '',
+    status: 'active',
     joiningDate: new Date().toISOString().split('T')[0],
     billing: {
       type: 'monthly',
@@ -371,6 +462,7 @@ const StudentModal: React.FC<{
     }
     const finalStudent = {
       ...formData,
+      status: formData.status || 'active',
       assignedTopics: currentLevelTopics
     } as Student;
     onSave(finalStudent, initialSchedules, deletedScheduleIds);
@@ -392,7 +484,25 @@ const StudentModal: React.FC<{
 
           <div className="flex-1 p-6 sm:p-8 space-y-8 overflow-y-auto">
             <div className="space-y-4">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Identification</h3>
+              <div className="flex justify-between items-center">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Identity & Status</h3>
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({...formData, status: 'active'})}
+                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formData.status === 'active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                  >
+                    Active
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({...formData, status: 'break'})}
+                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formData.status === 'break' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400'}`}
+                  >
+                    On Break
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Full Name</label>

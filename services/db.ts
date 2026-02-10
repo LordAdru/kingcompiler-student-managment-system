@@ -35,9 +35,6 @@ const sanitize = (data: any) => {
   return clean;
 };
 
-/**
- * Super-resilient role detection.
- */
 async function getCurrentUserRole(): Promise<{ role: string, uid: string, email: string }> {
   const user = auth.currentUser;
   if (!user) return { role: 'collaborator', uid: '', email: '' };
@@ -63,7 +60,6 @@ async function getCurrentUserRole(): Promise<{ role: string, uid: string, email:
 }
 
 export const dbService = {
-  // --- STUDENTS ---
   getStudents: async (): Promise<Student[]> => {
     try {
       const { role, uid } = await getCurrentUserRole();
@@ -77,13 +73,17 @@ export const dbService = {
       }
       
       const snapshot = await getDocs(q);
-      const students = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Student));
+      const students = snapshot.docs.map((doc: any) => {
+        const data = doc.data();
+        return { 
+          id: doc.id, 
+          status: 'active', // Fallback for legacy data
+          ...data 
+        } as Student;
+      });
       
       return students.sort((a: Student, b: Student) => (a.fullName || '').localeCompare(b.fullName || ''));
     } catch (err: any) {
-      if (err.code === 'permission-denied') {
-        console.error("FIREBASE ERROR: Permission Denied. Check Rules.");
-      }
       return [];
     }
   },
@@ -97,7 +97,6 @@ export const dbService = {
     await deleteDoc(doc(db, COLLECTIONS.STUDENTS, id));
   },
 
-  // --- GROUPS ---
   getGroups: async (): Promise<GroupBatch[]> => {
     try {
       const { role } = await getCurrentUserRole();
@@ -116,7 +115,6 @@ export const dbService = {
     await deleteDoc(doc(db, COLLECTIONS.GROUPS, id));
   },
 
-  // --- SCHEDULES ---
   getSchedules: async (studentId?: string, groupId?: string): Promise<ClassSchedule[]> => {
     try {
       const { role, uid } = await getCurrentUserRole();
@@ -139,7 +137,6 @@ export const dbService = {
     await deleteDoc(doc(db, COLLECTIONS.SCHEDULES, id));
   },
 
-  // --- SESSIONS ---
   getSessions: async (): Promise<ClassSession[]> => {
     try {
       const { role, uid } = await getCurrentUserRole();
@@ -156,7 +153,6 @@ export const dbService = {
     await updateDoc(doc(db, COLLECTIONS.SESSIONS, updatedSession.id), sanitize(updatedSession));
   },
 
-  // --- ATTENDANCE ---
   getAttendance: async (studentId?: string): Promise<AttendanceRecord[]> => {
     try {
       const coll = collection(db, COLLECTIONS.ATTENDANCE);
@@ -170,7 +166,6 @@ export const dbService = {
     await setDoc(doc(db, COLLECTIONS.ATTENDANCE, record.id), sanitize(record));
   },
 
-  // --- PARTNERS / COLLABORATORS ---
   getCollaborators: async (): Promise<AppUser[]> => {
     try {
       const q = query(collection(db, COLLECTIONS.USERS), where('role', '==', 'collaborator'));
@@ -196,6 +191,19 @@ export const dbService = {
 
   generateSessionsForSchedule: async (schedule: ClassSchedule) => {
     if (!schedule.active) return;
+    
+    // Check if the student is on break (for individual schedules)
+    if (schedule.studentId) {
+      const studentDoc = await getDoc(doc(db, COLLECTIONS.STUDENTS, schedule.studentId));
+      if (studentDoc.exists()) {
+        const studentData = studentDoc.data() as Student;
+        if (studentData.status === 'break') {
+          console.log(`Skipping session generation for ${schedule.studentName} (On Break)`);
+          return;
+        }
+      }
+    }
+
     const today = new Date();
     const projectionLimit = addWeeks(today, 3);
     const scheduleStartDate = new Date(schedule.startDate + 'T00:00:00');
