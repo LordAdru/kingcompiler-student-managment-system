@@ -25,7 +25,8 @@ import {
   Circle,
   Video,
   Play,
-  ArrowRight
+  ArrowRight,
+  MousePointer2
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { format } from 'date-fns';
@@ -213,52 +214,68 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
         {activeTab === 'homework' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
              <SectionHeader title="Training Tasks" subtitle="Active assignments for your level" icon={Target} />
-             <div className="grid grid-cols-1 gap-4">
+             <div className="grid grid-cols-1 gap-6">
                 {homework.length === 0 ? (
                   <EmptyState icon={ClipboardList} message="No pending assignments. Great work!" />
                 ) : homework.map(hw => (
-                  <div key={hw.id} className={`bg-white/5 border border-white/10 p-8 rounded-[2.5rem] space-y-4 hover:bg-white/10 transition-all group relative overflow-hidden ${hw.status === 'submitted' ? 'opacity-60' : ''}`}>
-                    {hw.status === 'submitted' && (
-                      <div className="absolute top-0 right-0 p-4">
-                         <div className="bg-emerald-500/20 text-emerald-400 p-2 rounded-xl">
-                            <CheckCircle2 size={24} />
-                         </div>
+                  <div key={hw.id} className={`bg-white/5 border border-white/10 rounded-[2.5rem] flex flex-col overflow-hidden hover:bg-white/10 transition-all group relative ${hw.status === 'submitted' ? 'opacity-60' : ''}`}>
+                    {hw.attachmentUrl && (
+                      <div className="h-48 w-full overflow-hidden bg-slate-800/50">
+                         <img src={hw.attachmentUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Task Visual" />
                       </div>
                     )}
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${hw.status === 'submitted' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-800 text-amber-500'}`}>
-                          <ClipboardList size={24} />
+                    
+                    <div className="p-10 space-y-6">
+                      {hw.status === 'submitted' && (
+                        <div className="absolute top-6 right-6">
+                           <div className="bg-emerald-500/20 text-emerald-400 p-2 rounded-xl">
+                              <CheckCircle2 size={24} />
+                           </div>
                         </div>
-                        <div>
-                          <h4 className={`font-black text-xl ${hw.status === 'submitted' ? 'line-through text-slate-500' : ''}`}>{hw.title}</h4>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                            {hw.status === 'submitted' ? 'Waiting for Instructor Review' : 'Status: Pending Submission'}
-                          </p>
+                      )}
+                      
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-5">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${hw.status === 'submitted' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-800 text-amber-500'}`}>
+                            <ClipboardList size={28} />
+                          </div>
+                          <div>
+                            <h4 className={`font-black text-2xl tracking-tight ${hw.status === 'submitted' ? 'line-through text-slate-500' : ''}`}>{hw.title}</h4>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                              {hw.status === 'submitted' ? 'Waiting for Instructor Review' : `Due by ${format(new Date(hw.dueDate), 'MMM dd')}`}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right pr-10 md:pr-0">
-                         <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Due Date</p>
-                         <p className="text-xs font-bold text-slate-400">{format(new Date(hw.dueDate), 'MMM dd, yyyy')}</p>
+
+                      <p className={`text-slate-400 text-base leading-relaxed font-medium ${hw.status === 'submitted' ? 'opacity-50' : ''}`}>
+                        {hw.description}
+                      </p>
+
+                      <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                         {hw.resourceLink && (
+                           <button 
+                            onClick={() => window.open(hw.resourceLink, '_blank')}
+                            className="flex-1 bg-amber-500 text-slate-950 py-5 rounded-[1.5rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-amber-500/10 hover:bg-amber-400 transition-all active:scale-95"
+                           >
+                             <MousePointer2 size={18} />
+                             Start Interactive Task
+                           </button>
+                         )}
+                         <button 
+                          onClick={() => toggleHomeworkStatus(hw)}
+                          disabled={isUpdatingHw === hw.id}
+                          className={`flex-1 py-5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
+                            hw.status === 'submitted' 
+                              ? 'bg-slate-800 text-slate-400 hover:bg-slate-700' 
+                              : 'bg-white text-slate-950 hover:bg-slate-200'
+                          }`}
+                         >
+                            {isUpdatingHw === hw.id ? <RefreshCw size={14} className="animate-spin" /> : 
+                             hw.status === 'submitted' ? <RefreshCw size={14} /> : <CheckCircle2 size={14} />}
+                            {hw.status === 'submitted' ? 'Undo Submission' : 'Mark Completed'}
+                         </button>
                       </div>
-                    </div>
-                    <p className={`text-slate-400 text-sm leading-relaxed font-medium pl-16 ${hw.status === 'submitted' ? 'opacity-50' : ''}`}>
-                      {hw.description}
-                    </p>
-                    <div className="pt-4 flex justify-end">
-                       <button 
-                        onClick={() => toggleHomeworkStatus(hw)}
-                        disabled={isUpdatingHw === hw.id}
-                        className={`px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 ${
-                          hw.status === 'submitted' 
-                            ? 'bg-slate-800 text-slate-400 hover:bg-slate-700' 
-                            : 'bg-white text-slate-950 hover:bg-amber-500 shadow-xl'
-                        }`}
-                       >
-                          {isUpdatingHw === hw.id ? <RefreshCw size={14} className="animate-spin" /> : 
-                           hw.status === 'submitted' ? <RefreshCw size={14} /> : <CheckCircle2 size={14} />}
-                          {hw.status === 'submitted' ? 'Undo Submission' : 'Mark as Completed'}
-                       </button>
                     </div>
                   </div>
                 ))}

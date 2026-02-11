@@ -97,16 +97,13 @@ export const academyLogic = {
         const newHomework: Homework = {
           id: `hw_auto_${Math.random().toString(36).substr(2, 9)}`,
           studentId: student.id,
-          title: `Homework: ${session.topic || 'Class Review'}`,
-          description: homework.message || 'No specific instructions provided.',
-          dueDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0], // Default 1 week
+          title: `Class Task: ${session.topic || 'Review'}`,
+          description: homework.message || 'Complete the assigned task from today\'s session.',
+          dueDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
           status: 'pending',
-          level: student.level
+          level: student.level,
+          resourceLink: homework.link || undefined
         };
-        // We could also store the link in description or a new field
-        if (homework.link) {
-          newHomework.description += `\n\nResource: ${homework.link}`;
-        }
         await dbService.saveHomework(newHomework);
       }
       

@@ -78,7 +78,7 @@ export const dbService = {
     }
     try {
       const snapshot = await getDocs(query(collection(db, COLLECTIONS.LIBRARY), orderBy('addedDate', 'desc')));
-      const resources = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as LibraryResource));
+      const resources = snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as LibraryResource));
       localStorage.setItem(CACHE_KEYS.LIBRARY, JSON.stringify(resources));
       return resources;
     } catch (err) {
@@ -104,7 +104,7 @@ export const dbService = {
   getAnnouncements: async (): Promise<Announcement[]> => {
     try {
       const snapshot = await getDocs(query(collection(db, COLLECTIONS.ANNOUNCEMENTS), orderBy('date', 'desc')));
-      return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Announcement));
+      return snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as Announcement));
     } catch (err) {
       console.warn("DB: Announcements fetch error", err);
       return [];
@@ -125,15 +125,10 @@ export const dbService = {
       let q = query(coll, orderBy('dueDate', 'desc'));
       
       const snapshot = await getDocs(q);
-      const data = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Homework));
-      
-      if (!level && !studentId) return data;
-
-      return data.filter(h => {
-        const matchesStudent = studentId && h.studentId === studentId;
-        const matchesLevel = level && h.level === level;
-        const isGlobal = !h.studentId && !h.level;
-        return matchesStudent || matchesLevel || isGlobal;
+      return snapshot.docs.map((doc: any) => {
+        const data = doc.data();
+        // Force use of doc.id to ensure the key used for deletion is the actual Firestore document key
+        return { ...data, id: doc.id } as Homework;
       });
     } catch (err) {
       console.warn("DB: Homework fetch error", err);
@@ -142,11 +137,16 @@ export const dbService = {
   },
 
   saveHomework: async (homework: Homework) => {
+    // Use the ID as the document name to keep them in sync
     await setDoc(doc(db, COLLECTIONS.HOMEWORK, homework.id), sanitize(homework), { merge: true });
   },
 
   deleteHomework: async (id: string) => {
-    await deleteDoc(doc(db, COLLECTIONS.HOMEWORK, id));
+    if (!id) throw new Error("A valid Document ID is required for deletion.");
+    console.log(`DB: Deleting assignment with ID [${id}]`);
+    const docRef = doc(db, COLLECTIONS.HOMEWORK, id);
+    await deleteDoc(docRef);
+    console.log(`DB: Assignment [${id}] successfully deleted.`);
   },
 
   getStudents: async (useCache = true): Promise<Student[]> => {
@@ -171,7 +171,7 @@ export const dbService = {
       const snapshot = await getDocs(q);
       const students = snapshot.docs.map((doc: any) => {
         const data = doc.data();
-        return { id: doc.id, status: 'active', ...data } as Student;
+        return { status: 'active', ...data, id: doc.id } as Student;
       }).sort((a: Student, b: Student) => (a.fullName || '').localeCompare(b.fullName || ''));
       
       localStorage.setItem(CACHE_KEYS.STUDENTS, JSON.stringify(students));
@@ -185,7 +185,7 @@ export const dbService = {
     try {
       const studentDoc = await getDoc(doc(db, COLLECTIONS.STUDENTS, id));
       if (studentDoc.exists()) {
-        return { id: studentDoc.id, ...studentDoc.data() } as Student;
+        return { ...studentDoc.data(), id: studentDoc.id } as Student;
       }
       return null;
     } catch (err) {
@@ -219,7 +219,7 @@ export const dbService = {
       const { role } = await getCurrentUserRole();
       if (role !== 'admin') return [];
       const snapshot = await getDocs(query(collection(db, COLLECTIONS.GROUPS)));
-      const groups = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as GroupBatch))
+      const groups = snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as GroupBatch))
         .sort((a: GroupBatch, b: GroupBatch) => (a.name || '').localeCompare(b.name || ''));
       localStorage.setItem(CACHE_KEYS.GROUPS, JSON.stringify(groups));
       return groups;
@@ -249,7 +249,7 @@ export const dbService = {
       else if (groupId) q = query(coll, where('groupId', '==', groupId));
       else if (role !== 'admin' && uid) q = query(coll, where('collaboratorId', '==', uid));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as ClassSchedule));
+      return snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as ClassSchedule));
     } catch (err) { return []; }
   },
 
@@ -273,7 +273,7 @@ export const dbService = {
       let q = query(coll);
       if (role !== 'admin' && uid) q = query(coll, where('collaboratorId', '==', uid));
       const snapshot = await getDocs(q);
-      const sessions = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as ClassSession))
+      const sessions = snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as ClassSession))
         .sort((a: ClassSession, b: ClassSession) => (a.start || "").localeCompare(b.start || ""));
       localStorage.setItem(CACHE_KEYS.SESSIONS, JSON.stringify(sessions));
       return sessions;
@@ -291,7 +291,7 @@ export const dbService = {
       const coll = collection(db, COLLECTIONS.ATTENDANCE);
       let q = studentId ? query(coll, where('studentId', '==', studentId)) : query(coll, limit(100));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+      return snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as AttendanceRecord));
     } catch (err) { return []; }
   },
 

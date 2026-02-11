@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/db';
 import { Homework, Student } from '../types';
-import { Plus, Trash2, Search, X, FileText, Save, ClipboardList, User, Layers, CheckCircle2, Clock } from 'lucide-react';
+import { Plus, Trash2, Search, X, FileText, Save, ClipboardList, User, Layers, CheckCircle2, Clock, Link as LinkIcon, Image as ImageIcon, Upload, RefreshCw } from 'lucide-react';
 import { LEVEL_TOPICS } from '../constants';
 
 export const HomeworkManager: React.FC = () => {
@@ -11,33 +11,69 @@ export const HomeworkManager: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
-    const [hData, sData] = await Promise.all([
-      dbService.getHomework(),
-      dbService.getStudents()
-    ]);
-    setHomeworks(hData);
-    setStudents(sData);
-    setIsLoading(false);
+    try {
+      const [hData, sData] = await Promise.all([
+        dbService.getHomework(),
+        dbService.getStudents()
+      ]);
+      setHomeworks(hData);
+      setStudents(sData);
+    } catch (err) {
+      console.error("Homework Manager: Failed to refresh list", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Delete this assignment?')) {
-      await dbService.deleteHomework(id);
-      await fetchData();
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    // Stop event bubbling to ensure the click is isolated to the button
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!id) {
+      alert("System Error: This assignment record is missing a valid Document ID. Please refresh and try again.");
+      return;
+    }
+
+    if (confirm('Permanently delete this assignment? This will remove it from the database for all users.')) {
+      setDeletingId(id);
+      
+      try {
+        // Step 1: Immediate local UI update (The card vanishes instantly)
+        setHomeworks(prev => prev.filter(h => h.id !== id));
+        
+        // Step 2: Database purge
+        await dbService.deleteHomework(id);
+        
+        console.log(`Homework Manager: Purged assignment ${id}`);
+        // Optional: Silent refresh to ensure sync
+        const hData = await dbService.getHomework();
+        setHomeworks(hData);
+      } catch (err: any) {
+        console.error("Delete Operation Failed:", err);
+        alert("Database Error: " + (err.message || "Could not delete assignment. Please check your network connection."));
+        // Step 3: Rollback if it failed
+        fetchData();
+      } finally {
+        setDeletingId(null);
+      }
     }
   };
 
-  const filteredHomeworks = homeworks.filter(h => 
-    h.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    h.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredHomeworks = homeworks.filter(h => {
+    const search = searchTerm.toLowerCase();
+    const title = (h.title || '').toLowerCase();
+    const desc = (h.description || '').toLowerCase();
+    return title.includes(search) || desc.includes(search);
+  });
 
   return (
     <div className="space-y-6">
@@ -66,49 +102,76 @@ export const HomeworkManager: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-          <p className="p-10 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">Loading feed...</p>
+        {isLoading && homeworks.length === 0 ? (
+          <div className="col-span-full py-20 text-center">
+            <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Syncing Tasks...</p>
+          </div>
         ) : filteredHomeworks.map(hw => {
           const targetStudent = students.find(s => s.id === hw.studentId);
+          const isDeleting = deletingId === hw.id;
+
           return (
-            <div key={hw.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between group">
-              <div className="flex items-start justify-between mb-6">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${hw.status === 'submitted' ? 'bg-emerald-50 text-emerald-500' : 'bg-amber-50 text-amber-500'}`}>
-                  <ClipboardList size={24} />
+            <div key={hw.id} className={`bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col group overflow-hidden animate-in fade-in zoom-in duration-300 relative transition-all ${isDeleting ? 'opacity-30 scale-95 grayscale' : 'hover:border-amber-200'}`}>
+              {hw.attachmentUrl && (
+                <div className="h-32 w-full overflow-hidden bg-slate-100 border-b border-slate-50">
+                  <img src={hw.attachmentUrl} className="w-full h-full object-cover" alt="Task Preview" />
                 </div>
-                <div className="flex gap-2">
-                   {hw.status === 'submitted' && (
-                     <span className="p-2 bg-emerald-50 text-emerald-600 rounded-lg" title="Submission Received">
-                        <CheckCircle2 size={16} />
-                     </span>
-                   )}
-                   <button onClick={() => handleDelete(hw.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
-                    <Trash2 size={16} />
-                  </button>
+              )}
+              <div className="p-8 flex flex-col flex-1">
+                <div className="flex items-start justify-between mb-6">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${hw.status === 'submitted' ? 'bg-emerald-50 text-emerald-500' : 'bg-amber-50 text-amber-500'}`}>
+                    <ClipboardList size={24} />
+                  </div>
+                  <div className="flex gap-2 relative z-20">
+                    {hw.status === 'submitted' && (
+                      <span className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100" title="Submission Received">
+                          <CheckCircle2 size={16} />
+                      </span>
+                    )}
+                    <button 
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={(e) => handleDelete(e, hw.id)} 
+                      className={`p-2.5 rounded-xl transition-all shadow-sm border ${
+                        isDeleting 
+                        ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed' 
+                        : 'bg-white text-slate-400 hover:text-white hover:bg-red-500 border-slate-200 hover:border-red-600 shadow-md'
+                      }`} 
+                      title="Purge Task"
+                    >
+                      {isDeleting ? <RefreshCw size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex-1 space-y-4">
-                <div>
-                  <h3 className="text-lg font-black text-slate-800 mb-1 leading-tight">{hw.title}</h3>
-                  <p className="text-xs text-slate-500 line-clamp-2">{hw.description}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {hw.studentId ? (
-                    <span className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase border border-blue-100">
-                      <User size={10} /> {targetStudent?.fullName || 'Specific User'}
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800 mb-1 leading-tight">{hw.title || 'Untitled Task'}</h3>
+                    <p className="text-xs text-slate-500 line-clamp-2">{hw.description}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {hw.studentId ? (
+                      <span className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase border border-blue-100">
+                        <User size={10} /> {targetStudent?.fullName || 'User Record'}
+                      </span>
+                    ) : hw.level ? (
+                      <span className="flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-[9px] font-black uppercase border border-purple-100">
+                        <Layers size={10} /> {hw.level}
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase border border-slate-100">
+                        Everyone
+                      </span>
+                    )}
+                    <span className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black uppercase border ${hw.status === 'submitted' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                      <Clock size={10} /> Due: {hw.dueDate}
                     </span>
-                  ) : hw.level ? (
-                    <span className="flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-[9px] font-black uppercase border border-purple-100">
-                      <Layers size={10} /> {hw.level}
-                    </span>
-                  ) : (
-                    <span className="px-3 py-1 bg-slate-50 text-slate-600 rounded-lg text-[9px] font-black uppercase border border-slate-100">
-                      Everyone
-                    </span>
-                  )}
-                  <span className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black uppercase border ${hw.status === 'submitted' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                    <Clock size={10} /> Due: {hw.dueDate}
-                  </span>
+                    {hw.resourceLink && (
+                       <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-[9px] font-black uppercase border border-amber-200">
+                         Link Attached
+                       </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -145,17 +208,30 @@ const HomeworkModal: React.FC<{ students: Student[], onClose: () => void, onSave
     dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     status: 'pending',
     level: '',
-    studentId: ''
+    studentId: '',
+    resourceLink: '',
+    attachmentUrl: ''
   });
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFormData({ ...formData, attachmentUrl: event.target?.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in">
-        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+      <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in max-h-[90vh] flex flex-col">
+        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
           <h2 className="text-xl font-black text-slate-800">Assign Training</h2>
           <button onClick={onClose}><X className="text-slate-400" /></button>
         </div>
-        <div className="p-8 space-y-6">
+        <div className="p-8 space-y-6 overflow-y-auto flex-1">
           <div>
             <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Headline</label>
             <input className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
@@ -164,6 +240,46 @@ const HomeworkModal: React.FC<{ students: Student[], onClose: () => void, onSave
             <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Instructions</label>
             <textarea rows={3} className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
           </div>
+          
+          <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+             <div>
+                <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest flex items-center gap-2">
+                  <LinkIcon size={12}/> Interactive Link (e.g. Chess.com/Game)
+                </label>
+                <input 
+                  className="w-full px-5 py-3 rounded-xl bg-white border border-slate-100 font-bold text-xs" 
+                  placeholder="https://..."
+                  value={formData.resourceLink} 
+                  onChange={e => setFormData({...formData, resourceLink: e.target.value})} 
+                />
+             </div>
+             <div>
+                <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest flex items-center gap-2">
+                  <ImageIcon size={12}/> Diagram / Task Image
+                </label>
+                <div className="flex gap-4 items-center">
+                   <label className="flex-1 cursor-pointer">
+                      <div className="flex items-center justify-center gap-3 p-4 bg-white border-2 border-dashed border-slate-200 rounded-2xl hover:border-amber-400 hover:bg-amber-50 transition-all text-slate-500 font-bold text-xs uppercase">
+                        <Upload size={18} /> {formData.attachmentUrl ? 'Change Image' : 'Select Image'}
+                      </div>
+                      <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                   </label>
+                   {formData.attachmentUrl && (
+                     <div className="w-16 h-16 rounded-xl border border-slate-200 overflow-hidden relative group">
+                        <img src={formData.attachmentUrl} className="w-full h-full object-cover" />
+                        <button 
+                          type="button"
+                          onClick={() => setFormData({...formData, attachmentUrl: ''})}
+                          className="absolute inset-0 bg-red-500/80 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity"
+                        >
+                          <Trash2 size={14}/>
+                        </button>
+                     </div>
+                   )}
+                </div>
+             </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Due Date</label>
@@ -185,9 +301,9 @@ const HomeworkModal: React.FC<{ students: Student[], onClose: () => void, onSave
             </select>
           </div>
         </div>
-        <div className="p-8 bg-slate-50 flex gap-4">
-           <button onClick={onClose} className="flex-1 py-4 font-black uppercase text-[10px] text-slate-400">Cancel</button>
-           <button onClick={() => onSave(formData)} className="flex-[2] bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2"><Save size={14}/> Save Task</button>
+        <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
+           <button type="button" onClick={onClose} className="flex-1 py-4 font-black uppercase text-[10px] text-slate-400">Cancel</button>
+           <button type="submit" onClick={() => onSave(formData)} className="flex-[2] bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2"><Save size={14}/> Save Task</button>
         </div>
       </div>
     </div>

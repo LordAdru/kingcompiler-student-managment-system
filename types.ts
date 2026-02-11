@@ -63,6 +63,8 @@ export interface Homework {
   description: string;
   dueDate: string;
   status: 'pending' | 'submitted' | 'reviewed';
+  resourceLink?: string; // New: Primary task link (Chess.com/Lichess)
+  attachmentUrl?: string; // New: Supporting image/PDF base64
 }
 
 export interface GroupBatch {
