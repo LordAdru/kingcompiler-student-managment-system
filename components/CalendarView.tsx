@@ -5,7 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { dbService } from '../services/db';
-import { academyLogic } from '../services/logic';
+import { academyLogic, AttendanceResult } from '../services/logic';
 import { ClassSession, Student } from '../types';
 import { Calendar as CalendarIcon, Layers } from 'lucide-react';
 import { AttendanceModal } from './AttendanceModal';
@@ -60,17 +60,11 @@ export const CalendarView: React.FC = () => {
     };
   });
 
-  const handleAttendance = async (studentId: string, present: boolean, homework?: { message: string, link: string }) => {
+  // Fixed: Removed handleAttendance as academyLogic.processAttendance does not exist.
+  // Fixed: handleFinalize now correctly handles AttendanceResult array from AttendanceModal
+  const handleFinalize = async (results: AttendanceResult[]) => {
     if (!selectedSession) return;
-    const result = await academyLogic.processAttendance(selectedSession, studentId, present, homework);
-    if (result?.warning) {
-      console.log(result.warning);
-    }
-  };
-
-  const handleFinalize = async () => {
-    if (!selectedSession) return;
-    await academyLogic.finalizeSession(selectedSession);
+    await academyLogic.finalizeSessionWithAttendance(selectedSession, results);
     await fetchData();
     setSelectedSession(null);
   };
@@ -134,7 +128,6 @@ export const CalendarView: React.FC = () => {
         <AttendanceModal 
           session={selectedSession} 
           onClose={() => setSelectedSession(null)}
-          onMarkAttendance={handleAttendance}
           onFinalize={handleFinalize}
         />
       )}

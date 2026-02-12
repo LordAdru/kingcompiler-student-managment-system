@@ -14,19 +14,20 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { ClassSession, Student, GroupBatch } from '../types';
 import { dbService } from '../services/db';
+import { AttendanceResult } from '../services/logic';
 
 interface AttendanceModalProps {
   session: ClassSession;
   onClose: () => void;
-  onMarkAttendance: (studentId: string, present: boolean, homework?: { message: string, link: string }) => void;
-  onFinalize: () => void;
+  onFinalize: (results: AttendanceResult[]) => void;
 }
 
-export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClose, onMarkAttendance, onFinalize }) => {
+export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClose, onFinalize }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [group, setGroup] = useState<GroupBatch | null>(null);
   const [attendanceMap, setAttendanceMap] = useState<Record<string, boolean>>({});
@@ -34,6 +35,7 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
   const [homeworkData, setHomeworkData] = useState<Record<string, { message: string, link: string }>>({});
   const [expandedHw, setExpandedHw] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isFinishing, setIsFinishing] = useState(false);
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -56,28 +58,42 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
   }, [session]);
 
   const handleToggle = (studentId: string, present: boolean) => {
-    const hw = present ? homeworkData[studentId] : undefined;
-    onMarkAttendance(studentId, present, hw);
     setAttendanceMap(prev => ({ ...prev, [studentId]: present }));
     setProcessedMap(prev => ({ ...prev, [studentId]: true }));
-    
-    // Automatically expand homework if present is selected
     if (present) {
       setExpandedHw(prev => ({ ...prev, [studentId]: true }));
     }
   };
 
   const updateHomework = (studentId: string, field: 'message' | 'link', value: string) => {
-    const newData = {
-      ...(homeworkData[studentId] || { message: '', link: '' }),
-      [field]: value
-    };
-    setHomeworkData(prev => ({ ...prev, [studentId]: newData }));
+    setHomeworkData(prev => ({ 
+      ...prev, 
+      [studentId]: {
+        ...(prev[studentId] || { message: '', link: '' }),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleCommitFinalize = async () => {
+    const totalStudents = students.length;
+    const processedCount = Object.keys(processedMap).length;
     
-    // If student is already marked present, update the record immediately
-    if (attendanceMap[studentId]) {
-      onMarkAttendance(studentId, true, newData);
+    if (processedCount < totalStudents) {
+      if (!confirm(`You haven't marked attendance for ${totalStudents - processedCount} student(s). Proceed anyway?`)) {
+        return;
+      }
     }
+
+    setIsFinishing(true);
+    const results: AttendanceResult[] = Object.keys(processedMap).map(sid => ({
+      studentId: sid,
+      present: attendanceMap[sid],
+      homework: homeworkData[sid]
+    }));
+
+    await onFinalize(results);
+    setIsFinishing(false);
   };
 
   const isBatch = !!session.groupId;
@@ -86,7 +102,6 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
     <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[100] flex items-center justify-center p-2 sm:p-4">
       <div className="bg-[#0f172a] rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[95vh] border border-white/10">
         
-        {/* Header Section - Matches provided image style */}
         <div className="p-8 sm:p-10 relative shrink-0">
           <button onClick={onClose} className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors p-2 bg-white/5 rounded-full">
             <X size={24} />
@@ -120,7 +135,6 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
           </div>
         </div>
 
-        {/* Content Section */}
         <div className="flex-1 overflow-y-auto p-8 sm:p-10 pt-0 space-y-8 bg-white rounded-t-[3rem]">
           <div className="space-y-4">
             <div className="flex items-center gap-2 pt-6">
@@ -177,7 +191,6 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
                       </div>
                     </div>
 
-                    {/* Homework Section for Present Students */}
                     {isPresent && (
                       <div className="px-5 pb-5 animate-in slide-in-from-top-2 duration-300">
                         <button 
@@ -227,15 +240,15 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
           </div>
         </div>
 
-        {/* Footer Action */}
         {session.status === 'upcoming' && (
           <div className="p-8 bg-white border-t border-slate-100 shrink-0">
              <button 
-               onClick={onFinalize}
-               className="w-full py-6 bg-[#0f172a] hover:bg-slate-800 text-white rounded-[1.8rem] font-black uppercase text-xs tracking-[0.3em] shadow-2xl shadow-slate-950/40 active:scale-95 transition-all flex items-center justify-center gap-4"
+               onClick={handleCommitFinalize}
+               disabled={isFinishing}
+               className="w-full py-6 bg-[#0f172a] hover:bg-slate-800 text-white rounded-[1.8rem] font-black uppercase text-xs tracking-[0.3em] shadow-2xl shadow-slate-950/40 active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-50"
              >
-               <CheckCircle2 size={24} /> 
-               FINALIZE SESSION
+               {isFinishing ? <RefreshCw className="animate-spin" size={24} /> : <CheckCircle2 size={24} />}
+               {isFinishing ? 'PROCESSING...' : 'FINALIZE SESSION'}
              </button>
           </div>
         )}

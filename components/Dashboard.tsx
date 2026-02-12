@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { dbService } from '../services/db';
-import { academyLogic } from '../services/logic';
+import { academyLogic, AttendanceResult } from '../services/logic';
 import { 
   Users, 
   Calendar, 
@@ -58,7 +58,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const isAdmin = auth.currentUser?.email?.toLowerCase() === 'kingcompiler.official@gmail.com';
 
   const fetchInitialData = async () => {
-    // Stage 1: Load from Cache (Immediate)
     const cachedStudents = await dbService.getStudents(true);
     const cachedSessions = await dbService.getSessions(true);
     const cachedGroups = await dbService.getGroups(true);
@@ -68,7 +67,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
     setGroups(cachedGroups);
     setIsLoading(false);
 
-    // Stage 2: Background Refresh (Silent)
     setIsSyncing(true);
     try {
       const [sData, sessData, gData] = await Promise.all([
@@ -218,14 +216,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
     },
   ];
 
-  const handleAttendance = async (studentId: string, present: boolean, homework?: { message: string, link: string }) => {
+  const handleFinalize = async (results: AttendanceResult[]) => {
     if (!selectedSession) return;
-    await academyLogic.processAttendance(selectedSession, studentId, present, homework);
-  };
-
-  const handleFinalize = async () => {
-    if (!selectedSession) return;
-    await academyLogic.finalizeSession(selectedSession);
+    await academyLogic.finalizeSessionWithAttendance(selectedSession, results);
     await fetchInitialData();
     setSelectedSession(null);
   };
@@ -276,7 +269,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
         </div>
       </div>
 
-      {/* Payment Requests Warning Section */}
       {pendingPayments.length > 0 && (
         <div className="bg-emerald-50 border-2 border-emerald-100 rounded-[2.5rem] p-8 lg:p-10 animate-in bounce-in">
           <div className="flex items-center gap-4 mb-8">
@@ -462,7 +454,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
         <AttendanceModal 
           session={selectedSession} 
           onClose={() => setSelectedSession(null)}
-          onMarkAttendance={handleAttendance}
           onFinalize={handleFinalize}
         />
       )}
@@ -487,7 +478,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   );
 };
 
-// Helper component for Dashboard quick actions
 const QuickAction: React.FC<{ icon: any, title: string, onClick: () => void }> = ({ icon: Icon, title, onClick }) => (
   <button 
     onClick={onClick}
@@ -503,7 +493,6 @@ const QuickAction: React.FC<{ icon: any, title: string, onClick: () => void }> =
   </button>
 );
 
-// Helper component to display overdue students
 const OverduePaymentsModal: React.FC<{ 
   students: Student[], 
   onClose: () => void, 
@@ -551,7 +540,6 @@ const OverduePaymentsModal: React.FC<{
   </div>
 );
 
-// Helper component for alarm sound configuration
 const AlarmSettingsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [customAlarm, setCustomAlarm] = useState<string | null>(localStorage.getItem('academy_custom_alarm'));
 

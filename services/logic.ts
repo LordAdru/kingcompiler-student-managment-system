@@ -2,6 +2,12 @@
 import { Student, ClassSession, AttendanceRecord, Homework } from '../types';
 import { dbService } from './db';
 
+export interface AttendanceResult {
+  studentId: string;
+  present: boolean;
+  homework?: { message: string, link: string };
+}
+
 export const academyLogic = {
   // Main entry point for playing the alarm
   playAcademyChime: () => {
@@ -19,12 +25,10 @@ export const academyLogic = {
       }
     } catch (e) {
       console.warn("Academy Logic: Audio chime could not play.", e);
-      // Even if local storage or Audio fails, try synth one last time
       academyLogic.playDefaultSynthChime();
     }
   },
 
-  // The original synthesized "beeps" as a reliable fallback
   playDefaultSynthChime: () => {
     try {
       const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
@@ -35,9 +39,9 @@ export const academyLogic = {
       const gainNode = ctx.createGain();
 
       oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      oscillator.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.1); // E5
-      oscillator.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.3); // G5
+      oscillator.frequency.setValueAtTime(523.25, ctx.currentTime); 
+      oscillator.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.1); 
+      oscillator.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.3); 
 
       gainNode.gain.setValueAtTime(0, ctx.currentTime);
       gainNode.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
@@ -53,7 +57,6 @@ export const academyLogic = {
     }
   },
 
-  // Helper to save a custom sound
   setCustomAlarm: (source: string | null) => {
     if (source) {
       localStorage.setItem('academy_custom_alarm', source);
@@ -62,59 +65,59 @@ export const academyLogic = {
     }
   },
 
-  processAttendance: async (session: ClassSession, targetStudentId: string, present: boolean, homework?: { message: string, link: string }) => {
+  finalizeSessionWithAttendance: async (session: ClassSession, results: AttendanceResult[]) => {
     const students = await dbService.getStudents();
-    const student = students.find(s => s.id === targetStudentId);
-    
-    if (!student) return;
 
-    const attendance: AttendanceRecord = {
-      id: Math.random().toString(36).substr(2, 9),
-      sessionId: session.id,
-      studentId: student.id,
-      date: new Date().toISOString(),
-      present,
-      topicCompleted: session.topic || 'Review'
-    };
-    await dbService.saveAttendance(attendance);
+    for (const res of results) {
+      const student = students.find(s => s.id === res.studentId);
+      if (!student) continue;
 
-    if (present) {
-      student.billing.classesAttended += 1;
-
-      if (student.currentTopicIndex < student.assignedTopics.length) {
-        student.currentTopicIndex += 1;
-      }
-
-      const remaining = student.billing.totalClassesAllowed - student.billing.classesAttended;
-      if (remaining <= 0) {
-        student.billing.feeStatus = 'due';
-      }
-      
-      await dbService.saveStudent(student);
-
-      // Save Homework if provided
-      if (homework && (homework.message || homework.link)) {
-        const newHomework: Homework = {
-          id: `hw_auto_${Math.random().toString(36).substr(2, 9)}`,
-          studentId: student.id,
-          title: `Class Task: ${session.topic || 'Review'}`,
-          description: homework.message || 'Complete the assigned task from today\'s session.',
-          dueDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
-          status: 'pending',
-          level: student.level,
-          resourceLink: homework.link || undefined
-        };
-        await dbService.saveHomework(newHomework);
-      }
-      
-      return {
-        completedTopic: session.topic,
-        warning: remaining === 1 ? `⚠️ Last class for ${student.fullName}!` : 
-                 remaining <= 0 ? `🔴 Payment required for ${student.fullName}!` : null
+      // 1. Save Attendance Record
+      const attendance: AttendanceRecord = {
+        id: `att_${session.id}_${student.id}`, // Deterministic ID to prevent duplicates
+        sessionId: session.id,
+        studentId: student.id,
+        date: new Date().toISOString(),
+        present: res.present,
+        topicCompleted: session.topic || 'Review'
       };
+      await dbService.saveAttendance(attendance);
+
+      // 2. Process Billing & Topic Progress for Present Students
+      if (res.present) {
+        student.billing.classesAttended += 1;
+
+        if (student.currentTopicIndex < student.assignedTopics.length) {
+          student.currentTopicIndex += 1;
+        }
+
+        const remaining = student.billing.totalClassesAllowed - student.billing.classesAttended;
+        if (remaining <= 0) {
+          student.billing.feeStatus = 'due';
+        }
+        
+        await dbService.saveStudent(student);
+
+        // 3. Create/Update Homework with a deterministic ID
+        if (res.homework && (res.homework.message || res.homework.link)) {
+          const hwId = `hw_${session.id}_${student.id}`;
+          const newHomework: Homework = {
+            id: hwId,
+            studentId: student.id,
+            title: `Class Task: ${session.topic || 'Review'}`,
+            description: res.homework.message || 'Complete the assigned task from today\'s session.',
+            dueDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
+            status: 'pending',
+            level: student.level,
+            resourceLink: res.homework.link || undefined
+          };
+          await dbService.saveHomework(newHomework);
+        }
+      }
     }
-    
-    return { warning: null };
+
+    // 4. Close the session
+    await academyLogic.finalizeSession(session);
   },
 
   finalizeSession: async (session: ClassSession) => {

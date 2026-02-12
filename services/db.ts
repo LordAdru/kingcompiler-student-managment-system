@@ -125,10 +125,23 @@ export const dbService = {
       let q = query(coll, orderBy('dueDate', 'desc'));
       
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc: any) => {
+      const allHomework = snapshot.docs.map((doc: any) => {
         const data = doc.data();
-        // Force use of doc.id to ensure the key used for deletion is the actual Firestore document key
         return { ...data, id: doc.id } as Homework;
+      });
+
+      // If no filters are provided, we are in Admin mode - show everything
+      if (!level && !studentId) {
+        return allHomework;
+      }
+
+      // Filter logic for Student Portal
+      return allHomework.filter(h => {
+        const isPersonal = studentId && h.studentId === studentId;
+        const isLevelWide = level && h.level === level && !h.studentId;
+        const isGlobal = !h.studentId && !h.level;
+        
+        return isPersonal || isLevelWide || isGlobal;
       });
     } catch (err) {
       console.warn("DB: Homework fetch error", err);
@@ -137,7 +150,6 @@ export const dbService = {
   },
 
   saveHomework: async (homework: Homework) => {
-    // Use the ID as the document name to keep them in sync
     await setDoc(doc(db, COLLECTIONS.HOMEWORK, homework.id), sanitize(homework), { merge: true });
   },
 

@@ -26,7 +26,10 @@ import {
   Video,
   Play,
   ArrowRight,
-  MousePointer2
+  MousePointer2,
+  History,
+  TrendingUp,
+  Activity
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { format } from 'date-fns';
@@ -66,7 +69,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
         ]);
         
         setStudent(sData);
-        setAttendance(history.slice(0, 5));
+        setAttendance(history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setLibrary(lData);
         setAnnouncements(aData);
         setHomework(hData);
@@ -206,7 +209,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <CurrentTopicCard student={student} />
-               <RecentAttendanceCard attendance={attendance} />
+               <RecentAttendanceCard attendance={attendance} used={student.billing.classesAttended} total={student.billing.totalClassesAllowed} />
             </div>
           </div>
         )}
@@ -256,10 +259,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
                          {hw.resourceLink && (
                            <button 
                             onClick={() => window.open(hw.resourceLink, '_blank')}
-                            className="flex-1 bg-amber-500 text-slate-950 py-5 rounded-[1.5rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-amber-500/10 hover:bg-amber-400 transition-all active:scale-95"
+                            className="flex-1 bg-amber-500 text-slate-950 py-6 rounded-[1.8rem] font-black uppercase text-sm tracking-widest flex items-center justify-center gap-3 shadow-2xl shadow-amber-500/30 hover:bg-amber-400 transition-all active:scale-95 border-b-4 border-amber-700"
                            >
-                             <MousePointer2 size={18} />
-                             Start Interactive Task
+                             <Play size={22} fill="currentColor" />
+                             Start the Assignment
                            </button>
                          )}
                          <button 
@@ -340,10 +343,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
                   <EmptyState icon={Bell} message="No new announcements at this time." />
                 ) : announcements.map(ann => (
                   <div key={ann.id} className="bg-white/5 border border-white/10 p-10 rounded-[3rem] space-y-6 relative overflow-hidden group">
-                    <div className={`absolute top-0 left-0 w-1.5 h-full ${ann.priority === 'high' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
+                    <div className={`absolute top-0 left-0 w-1.5 h-full ${ann.priority === 'high' ? 'bg-red-50' : 'bg-amber-50'}`}></div>
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-2xl ${ann.priority === 'high' ? 'bg-red-500/20 text-red-500' : 'bg-amber-500/20 text-amber-500'}`}>
+                        <div className={`p-3 rounded-2xl ${ann.priority === 'high' ? 'bg-red-50/20 text-red-500' : 'bg-amber-50/20 text-amber-500'}`}>
                            <Info size={24} />
                         </div>
                         <h4 className="font-black text-2xl tracking-tight">{ann.title}</h4>
@@ -431,12 +434,13 @@ const CreditCardSection = ({ student, isRequesting, onReset }: any) => {
   const total = student.billing.totalClassesAllowed;
   const progress = (used / total) * 100;
   const isFinished = used >= total;
+  const remaining = Math.max(0, total - used);
 
   return (
     <div className={`rounded-[3.5rem] p-12 border-2 transition-all duration-700 relative overflow-hidden ${
       isFinished ? 'bg-red-500/10 border-red-500/30' : 'bg-white/5 border-white/10 shadow-2xl'
     }`}>
-      {used === 0 && (
+      {used === 0 && !isFinished && (
          <div className="absolute top-0 left-0 w-full h-full bg-emerald-500/5 animate-pulse pointer-events-none" />
       )}
 
@@ -450,6 +454,17 @@ const CreditCardSection = ({ student, isRequesting, onReset }: any) => {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="bg-white/5 border border-white/10 p-5 rounded-3xl">
+           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Classes Done</p>
+           <p className="text-2xl font-black text-white">{used}</p>
+        </div>
+        <div className={`p-5 rounded-3xl border ${isFinished ? 'bg-red-500/20 border-red-500/20' : 'bg-white/5 border-white/10'}`}>
+           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Remaining</p>
+           <p className={`text-2xl font-black ${isFinished ? 'text-red-500' : 'text-amber-500'}`}>{remaining}</p>
+        </div>
+      </div>
+
       <div className="space-y-6">
         <div className="h-5 w-full bg-white/5 border border-white/10 rounded-full overflow-hidden p-1">
           <div 
@@ -459,7 +474,7 @@ const CreditCardSection = ({ student, isRequesting, onReset }: any) => {
         </div>
         <div className="flex justify-between items-center px-2">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-            {used === 0 ? 'Cycle Recharged' : isFinished ? 'Payment Required' : `${total - used} Sessions in Bank`}
+            {used === 0 ? 'Cycle Recharged' : isFinished ? 'Inventory Depleted' : `${remaining} Sessions Available`}
           </p>
           {isFinished && (
             <span className="flex items-center gap-2 text-red-400 text-[10px] font-black uppercase animate-pulse">
@@ -511,41 +526,57 @@ const CurrentTopicCard = ({ student }: any) => (
     <div className="mt-10 pt-8 border-t border-white/5">
        <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">
           <span>Level Progress</span>
-          <span className="text-amber-500">{Math.round((student.currentTopicIndex / student.assignedTopics.length) * 100)}%</span>
+          <span className="text-amber-500">{Math.round((student.currentTopicIndex / (student.assignedTopics.length || 1)) * 100)}%</span>
        </div>
        <div className="h-1.5 w-full bg-white/5 rounded-full mt-3 overflow-hidden">
           <div 
             className="h-full bg-amber-500/30 rounded-full" 
-            style={{ width: `${(student.currentTopicIndex / student.assignedTopics.length) * 100}%` }}
+            style={{ width: `${(student.currentTopicIndex / (student.assignedTopics.length || 1)) * 100}%` }}
           />
        </div>
     </div>
   </div>
 );
 
-const RecentAttendanceCard = ({ attendance }: any) => (
+const RecentAttendanceCard = ({ attendance, used, total }: any) => (
   <div className="bg-white/5 border border-white/10 p-10 rounded-[3rem] space-y-8 hover:bg-white/10 transition-all">
     <div className="flex items-center justify-between">
-      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Activity Logs</h3>
-      <ChevronRight size={18} className="text-slate-700" />
+      <div className="flex items-center gap-3">
+         <Activity size={16} className="text-amber-500" />
+         <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Recent Activity</h3>
+      </div>
+      <span className="text-[9px] font-black text-white bg-white/10 px-2 py-0.5 rounded-full uppercase tracking-widest">
+        {used} of {total} Complete
+      </span>
     </div>
     <div className="space-y-5">
       {attendance.length === 0 ? (
-         <p className="text-[10px] font-black uppercase text-slate-700 tracking-[0.3em] py-12 text-center">Empty session record</p>
-      ) : attendance.map((log: any) => (
+         <div className="py-12 text-center">
+            <History size={32} className="mx-auto text-slate-800 mb-4" />
+            <p className="text-[10px] font-black uppercase text-slate-700 tracking-[0.3em]">Empty session record</p>
+         </div>
+      ) : attendance.slice(0, 5).map((log: any) => (
         <div key={log.id} className="flex items-center justify-between group/item">
           <div className="flex items-center gap-4">
-            <div className={`w-2.5 h-2.5 rounded-full ${log.present ? 'bg-emerald-50 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-red-50 shadow-[0_0_8px_rgba(239,68,68,0.4)]'}`} />
-            <div>
+            <div className={`w-2.5 h-2.5 rounded-full ${log.present ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]'}`} />
+            <div className="min-w-0">
               <p className="text-sm font-bold text-slate-200 truncate max-w-[140px] group-hover/item:text-white transition-colors">{log.topicCompleted}</p>
-              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{format(new Date(log.date), 'MMM dd')}</p>
+              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{format(new Date(log.date), 'MMM dd, yyyy')}</p>
             </div>
           </div>
-          <span className={`text-[10px] font-black uppercase tracking-widest ${log.present ? 'text-emerald-500' : 'text-red-500/60'}`}>
-            {log.present ? 'Present' : 'Absent'}
-          </span>
+          <div className="text-right shrink-0">
+             <span className={`text-[9px] font-black uppercase tracking-widest block ${log.present ? 'text-emerald-500' : 'text-red-500/60'}`}>
+                {log.present ? 'Attended' : 'Absent'}
+             </span>
+             {log.present && <p className="text-[8px] font-bold text-slate-700 uppercase tracking-tight">+1 Credit</p>}
+          </div>
         </div>
       ))}
     </div>
+    {attendance.length > 0 && (
+      <div className="pt-4 border-t border-white/5 flex items-center justify-center">
+         <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">End of Recent Records</p>
+      </div>
+    )}
   </div>
 );
