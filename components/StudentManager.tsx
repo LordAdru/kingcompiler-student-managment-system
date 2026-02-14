@@ -2,8 +2,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { dbService } from '../services/db';
 import { authService } from '../services/auth';
-import { Student, ClassSchedule, BillingType, FeeStatus, AppUser, StudentStatus } from '../types';
-import { Plus, Search, Trash2, UserPlus, Eye, Edit2, Clock, Calendar, X, ListOrdered, Phone, Share2, CreditCard, Moon, UserCheck, Users as UsersIcon, Key, ShieldCheck, Lock, EyeOff, Copy, Check, Video } from 'lucide-react';
+import { Student, ClassSchedule, BillingType, FeeStatus, AppUser, StudentStatus, CourseEnrollment } from '../types';
+import { Plus, Search, Trash2, UserPlus, Eye, Edit2, Clock, Calendar, X, ListOrdered, Phone, Share2, CreditCard, Moon, UserCheck, Users as UsersIcon, Key, ShieldCheck, Lock, EyeOff, Copy, Check, Video, BookOpen, GraduationCap } from 'lucide-react';
 import { COURSES, LEVEL_TOPICS } from '../constants';
 
 interface StudentManagerProps {
@@ -56,7 +56,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
     return students.filter(s => {
       const matchesSearch = 
         s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.course.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (s.whatsappNumber && s.whatsappNumber.includes(searchTerm));
       
       const matchesTab = 
@@ -76,15 +75,12 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
   };
 
   const handleSave = async (student: Student, schedules: any[], deletedScheduleIds: string[], authConfig?: { email: string, pass: string }) => {
-    // 1. Ensure email is attached to student record for portal matching
     if (authConfig?.email) {
       student.email = authConfig.email.toLowerCase();
     }
 
-    // 2. Save Student Record
     await dbService.saveStudent(student);
     
-    // 3. Handle Schedules
     for (const id of deletedScheduleIds) {
       await dbService.deleteSchedule(id);
     }
@@ -95,6 +91,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
         studentId: student.id,
         studentName: student.fullName,
         collaboratorId: student.collaboratorId,
+        course: sch.course,
         days: sch.days,
         startTime: sch.startTime,
         endTime: sch.endTime,
@@ -104,7 +101,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
       await dbService.saveSchedule(schedule);
     }
 
-    // 4. Handle Account Creation
     if (authConfig) {
       try {
         await authService.adminCreateUserAccount(
@@ -115,8 +111,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
           student.id
         );
       } catch (err: any) {
-        // If account already exists, we don't alert as an error because the student 
-        // record is already saved and linked via email.
         if (err.message.includes('already registered')) {
           console.info("Portal account already exists. Record linked via email.");
         } else {
@@ -185,7 +179,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
             <thead className="bg-slate-50/50 border-b border-slate-100">
               <tr>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Info</th>
-                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollment</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollments</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Partner/Source</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
@@ -296,8 +290,17 @@ const StudentTableRow = ({ student, collaboratorName, onSelect, onEdit, onDelete
       </div>
     </td>
     <td className="px-8 py-6">
-      <p className="text-sm font-black text-slate-700 tracking-tight">{student.course}</p>
-      <p className="text-[10px] font-black text-slate-400 uppercase mt-1 tracking-widest">Level: {student.level}</p>
+      <div className="flex flex-col gap-1">
+        {student.enrollments?.map((e: CourseEnrollment, i: number) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            <p className="text-xs font-black text-slate-700">{e.course} <span className="text-slate-400 font-bold ml-1 text-[10px] uppercase">({e.level})</span></p>
+          </div>
+        ))}
+        {!student.enrollments && (
+           <p className="text-xs font-black text-slate-700">{student.course} <span className="text-slate-400 font-bold ml-1 text-[10px] uppercase">({student.level})</span></p>
+        )}
+      </div>
     </td>
     <td className="px-8 py-6">
       <div className="flex items-center gap-2">
@@ -333,10 +336,12 @@ const StudentCard = ({ student, onSelect, onEdit, onDelete }: any) => (
           {student.status === 'break' ? <Moon size={24} /> : student.fullName.charAt(0)}
         </div>
         <div>
-          <div className="flex items-center gap-2">
-            <p className="font-black text-slate-900 text-lg leading-tight tracking-tight">{student.fullName}</p>
+          <p className="font-black text-slate-900 text-lg leading-tight tracking-tight">{student.fullName}</p>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {student.enrollments?.map((e: CourseEnrollment, i: number) => (
+               <span key={i} className="text-[8px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 uppercase">{e.course}</span>
+            ))}
           </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{student.level}</p>
         </div>
       </div>
       <div className="flex gap-1">
@@ -347,8 +352,8 @@ const StudentCard = ({ student, onSelect, onEdit, onDelete }: any) => (
     
     <div className="flex items-center justify-between px-2">
       <div className="flex items-center gap-2 text-slate-400">
-        <Clock size={12} />
-        <p className="text-[10px] font-bold uppercase tracking-widest">{student.course}</p>
+        <BookOpen size={12} />
+        <p className="text-[10px] font-bold uppercase tracking-widest">{student.enrollments?.length || 1} Active Tracks</p>
       </div>
       <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
         student.billing.feeStatus === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
@@ -379,30 +384,34 @@ const StudentModal: React.FC<{
     age: 18,
     whatsappNumber: '',
     meetingLink: '',
-    course: COURSES[0],
-    level: LEVEL_TOPICS[0].level,
     collaboratorId: '',
     status: 'active',
     joiningDate: new Date().toISOString().split('T')[0],
+    enrollments: [{
+      course: COURSES[0],
+      level: LEVEL_TOPICS[0].level,
+      currentTopicIndex: 0,
+      assignedTopics: LEVEL_TOPICS[0].topics
+    }],
     billing: {
       type: 'monthly',
       feeAmount: 500,
       totalClassesAllowed: 8,
       classesAttended: 0,
       feeStatus: 'paid'
-    },
-    currentTopicIndex: 0,
-    assignedTopics: LEVEL_TOPICS[0].topics
+    }
   });
 
   const [initialSchedules, setInitialSchedules] = useState<Array<{
     id: string;
+    course: string;
     days: number[];
     startTime: string;
     endTime: string;
     active?: boolean;
   }>>(student ? [] : [{
     id: Math.random().toString(36).substr(2, 9),
+    course: COURSES[0],
     days: [1],
     startTime: '10:00',
     endTime: '11:00',
@@ -422,6 +431,7 @@ const StudentModal: React.FC<{
       dbService.getSchedules(student.id).then(data => {
         setInitialSchedules(data.map(d => ({
           id: d.id,
+          course: d.course || (student.enrollments?.[0]?.course || COURSES[0]),
           days: d.days,
           startTime: d.startTime,
           endTime: d.endTime,
@@ -432,9 +442,39 @@ const StudentModal: React.FC<{
     }
   }, [student]);
 
-  const currentLevelTopics = useMemo(() => {
-    return LEVEL_TOPICS.find(lt => lt.level === formData.level)?.topics || [];
-  }, [formData.level]);
+  const addEnrollment = () => {
+    const newEnrollment: CourseEnrollment = {
+      course: COURSES[0],
+      level: LEVEL_TOPICS[0].level,
+      currentTopicIndex: 0,
+      assignedTopics: LEVEL_TOPICS[0].topics
+    };
+    setFormData(prev => ({
+      ...prev,
+      enrollments: [...(prev.enrollments || []), newEnrollment]
+    }));
+  };
+
+  const removeEnrollment = (index: number) => {
+    if ((formData.enrollments?.length || 0) <= 1) return;
+    setFormData(prev => ({
+      ...prev,
+      enrollments: prev.enrollments?.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateEnrollment = (index: number, field: keyof CourseEnrollment, value: any) => {
+    setFormData(prev => {
+      const updated = [...(prev.enrollments || [])];
+      updated[index] = { ...updated[index], [field]: value };
+      if (field === 'level') {
+        const topics = LEVEL_TOPICS.find(lt => lt.level === value)?.topics || [];
+        updated[index].assignedTopics = topics;
+        updated[index].currentTopicIndex = 0;
+      }
+      return { ...prev, enrollments: updated };
+    });
+  };
 
   const copyCreds = () => {
     const text = `KingCompiler Academy\n\nLogin Email: ${formData.email}\nPassword: ${studentPassword}\n\nLogin at: ${window.location.origin}`;
@@ -446,6 +486,7 @@ const StudentModal: React.FC<{
   const addSlot = () => {
     setInitialSchedules(prev => [...prev, {
       id: Math.random().toString(36).substr(2, 9),
+      course: formData.enrollments?.[0]?.course || COURSES[0],
       days: [],
       startTime: '10:00',
       endTime: '11:00',
@@ -454,10 +495,7 @@ const StudentModal: React.FC<{
   };
 
   const removeSlot = (id: string) => {
-    if (initialSchedules.length <= 1) {
-      alert("At least one schedule slot is required.");
-      return;
-    }
+    if (initialSchedules.length <= 1) return;
     if (student) setDeletedScheduleIds(prev => [...prev, id]);
     setInitialSchedules(prev => prev.filter(s => s.id !== id));
   };
@@ -474,7 +512,7 @@ const StudentModal: React.FC<{
     }));
   };
 
-  const updateTime = (slotId: string, field: 'startTime' | 'endTime', value: string) => {
+  const updateSchedule = (slotId: string, field: string, value: any) => {
     setInitialSchedules(prev => prev.map(s => {
       if (s.id !== slotId) return s;
       return { ...s, [field]: value };
@@ -504,18 +542,17 @@ const StudentModal: React.FC<{
       return;
     }
     if (enableAccess && (!formData.email || studentPassword.length < 6)) {
-      alert("Please provide a valid email and a password of at least 6 characters for portal access.");
+      alert("Please provide credentials.");
       return;
     }
 
     const finalStudent: Student = {
       ...formData,
       status: (formData.status as StudentStatus) || 'active',
-      assignedTopics: currentLevelTopics
+      enrollments: formData.enrollments || []
     } as Student;
 
     const authConfig = enableAccess ? { email: formData.email!, pass: studentPassword } : undefined;
-    
     onSave(finalStudent, initialSchedules, deletedScheduleIds, authConfig);
   };
 
@@ -525,8 +562,8 @@ const StudentModal: React.FC<{
         <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
           <div className="p-6 sm:p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/30 shrink-0">
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-800">{student ? 'Update Profile' : 'New Enrollment'}</h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Configure student & schedules</p>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-800">{student ? 'Edit Record' : 'Enroll Student'}</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Multi-Course Enabled</p>
             </div>
             <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
               <X size={24} className="text-slate-400" />
@@ -534,243 +571,130 @@ const StudentModal: React.FC<{
           </div>
 
           <div className="flex-1 p-6 sm:p-8 space-y-8 overflow-y-auto">
-            {/* Account Access Creation Section */}
-            <div className={`bg-slate-900 rounded-[2rem] p-6 text-white space-y-4 transition-all ${enableAccess ? 'ring-4 ring-amber-500/20' : ''}`}>
-              <div className="flex items-center justify-between">
+            <div className={`bg-slate-900 rounded-[2rem] p-6 text-white space-y-4 transition-all`}>
+               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${student?.email || enableAccess ? 'bg-amber-500 text-slate-900' : 'bg-white/10 text-slate-500'}`}>
+                  <div className="p-2 rounded-lg bg-amber-500 text-slate-900">
                     <Key size={18} />
                   </div>
                   <div>
-                    <h3 className="font-black text-sm tracking-tight">{student?.email ? 'Manage Account' : 'Portal Credentials'}</h3>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                      {student?.email ? 'Account Active' : 'Enable Student Dashboard'}
-                    </p>
+                    <h3 className="font-black text-sm tracking-tight">{student?.email ? 'Identity Active' : 'Dashboard Access'}</h3>
                   </div>
                 </div>
                 {!student?.email && (
-                  <button 
-                    type="button"
-                    onClick={() => setEnableAccess(!enableAccess)}
-                    className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${enableAccess ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 'bg-white/10 text-slate-400'}`}
-                  >
-                    {enableAccess ? 'Disable Access' : 'Enable Access'}
+                  <button type="button" onClick={() => setEnableAccess(!enableAccess)} className="px-4 py-2 rounded-xl text-[9px] font-black uppercase bg-white/10 text-slate-400">
+                    {enableAccess ? 'Disable' : 'Enable Access'}
                   </button>
                 )}
               </div>
-
               {(enableAccess || student?.email) && (
-                <div className="space-y-4 pt-2 animate-in slide-in-from-top-4">
+                <div className="space-y-4 pt-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                     <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Portal Email</label>
-                        <input 
-                          required 
-                          type="email" 
-                          placeholder="student@example.com"
-                          className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50" 
-                          value={formData.email}
-                          onChange={e => setFormData({...formData, email: e.target.value})}
-                          disabled={!!student?.email}
-                        />
-                     </div>
-                     {!student?.email && (
-                       <div className="space-y-1">
-                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Temporary Password</label>
-                          <div className="relative">
-                            <input 
-                              required 
-                              type={showPass ? "text" : "password"}
-                              placeholder="Min 6 characters"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm outline-none focus:ring-1 focus:ring-amber-500 pr-10" 
-                              value={studentPassword}
-                              onChange={e => setStudentPassword(e.target.value)}
-                            />
-                            <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
-                              {showPass ? <EyeOff size={16}/> : <Eye size={16}/>}
-                            </button>
-                          </div>
-                       </div>
-                     )}
+                     <input type="email" placeholder="student@example.com" className="bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} disabled={!!student?.email} />
+                     {!student?.email && <input type="password" placeholder="Min 6 characters" className="bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-sm" value={studentPassword} onChange={e => setStudentPassword(e.target.value)} />}
                   </div>
-                  {!student?.email && (
-                    <button 
-                      type="button"
-                      onClick={copyCreds}
-                      className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-all"
-                    >
-                      {copied ? <><Check size={14} className="text-emerald-500" /> Copied!</> : <><Copy size={14} /> Copy Credentials for WhatsApp</>}
-                    </button>
-                  )}
-                  {student?.email && (
-                    <p className="text-[9px] text-slate-500 font-bold italic">
-                      Student already has an account. To change password, go to their full profile.
-                    </p>
-                  )}
                 </div>
               )}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="flex justify-between items-center">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Identity & Status</h3>
-                <div className="flex bg-slate-100 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({...formData, status: 'active'})}
-                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formData.status === 'active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
-                  >
-                    Active
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({...formData, status: 'break'})}
-                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formData.status === 'break' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400'}`}
-                  >
-                    On Break
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Full Name</label>
-                  <input required type="text" className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-2 focus:ring-amber-500 transition-all" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Collaborator / Source</label>
-                  <select 
-                    className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 outline-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-700"
-                    value={formData.collaboratorId}
-                    onChange={e => setFormData({...formData, collaboratorId: e.target.value})}
-                  >
-                    <option value="">Direct / Self</option>
-                    {collaborators.map(c => (
-                      <option key={c.uid} value={c.uid}>{c.displayName || c.email}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">WhatsApp</label>
-                  <input type="tel" className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 focus:ring-2 focus:ring-amber-500 transition-all" value={formData.whatsappNumber} onChange={e => setFormData({...formData, whatsappNumber: e.target.value})} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Joining Date</label>
-                  <input required type="date" className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 focus:ring-2 focus:ring-amber-500 transition-all" value={formData.joiningDate} onChange={e => setFormData({...formData, joiningDate: e.target.value})} />
-                </div>
-              </div>
-              {/* Meeting Link Field */}
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1 flex items-center gap-2">
-                  <Video size={12} className="text-amber-500" /> Virtual Classroom (Meeting Link)
-                </label>
-                <input 
-                  type="url" 
-                  placeholder="https://meet.google.com/xxx-xxxx-xxx"
-                  className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 focus:ring-2 focus:ring-amber-500 transition-all font-bold text-slate-600" 
-                  value={formData.meetingLink} 
-                  onChange={e => setFormData({...formData, meetingLink: e.target.value})} 
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Target Course</label>
-                <select className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 font-bold" value={formData.course} onChange={e => setFormData({...formData, course: e.target.value})}>
-                  {COURSES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Skill Level</label>
-                <select className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 font-bold" value={formData.level} onChange={e => setFormData({...formData, level: e.target.value, currentTopicIndex: 0})}>
-                  {LEVEL_TOPICS.map(lt => <option key={lt.level} value={lt.level}>{lt.level}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <CreditCard size={14} className="text-amber-500"/> Financial Configuration
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Fee Amount ($)</label>
-                  <input 
-                    required 
-                    type="number" 
-                    className="w-full px-5 py-3 rounded-2xl bg-amber-50/30 border border-amber-100 focus:ring-2 focus:ring-amber-500 font-bold text-slate-700 outline-none transition-all" 
-                    value={formData.billing?.feeAmount} 
-                    onChange={e => updateBilling('feeAmount', Number(e.target.value))} 
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Classes / Cycle</label>
-                  <input 
-                    required 
-                    type="number" 
-                    className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 focus:ring-2 focus:ring-amber-500 font-bold text-slate-700 outline-none transition-all" 
-                    value={formData.billing?.totalClassesAllowed} 
-                    onChange={e => updateBilling('totalClassesAllowed', Number(e.target.value))} 
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Fee Status</label>
-                  <select 
-                    className="w-full px-5 py-3 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500" 
-                    value={formData.billing?.feeStatus} 
-                    onChange={e => updateBilling('feeStatus', e.target.value)}
-                  >
-                    <option value="paid">Paid</option>
-                    <option value="due">Due</option>
-                    <option value="blocked">Blocked</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-center px-1">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Schedule Slots</h3>
-                <button type="button" onClick={addSlot} className="text-[10px] font-black text-amber-600 bg-amber-50 px-4 py-2 rounded-xl border border-amber-100">Add Slot</button>
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2"><GraduationCap size={14} className="text-amber-500"/> Active Tracks</h3>
+                <button type="button" onClick={addEnrollment} className="text-[9px] font-black uppercase text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">+ Add Course</button>
               </div>
               <div className="space-y-4">
-                {isSchedulesLoading ? (
-                  <div className="py-10 text-center bg-slate-50 rounded-3xl animate-pulse">Loading Slots...</div>
-                ) : initialSchedules.map((slot, idx) => (
-                  <div key={slot.id} className="p-5 rounded-[2rem] bg-slate-900 text-white space-y-4">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em]">Slot #{idx + 1}</span>
-                      <button type="button" onClick={() => removeSlot(slot.id)} className="text-red-400"><Trash2 size={16} /></button>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {DAYS_OF_WEEK.map((day) => (
-                        <button
-                          key={day.value}
-                          type="button"
-                          onClick={() => toggleDay(slot.id, day.value)}
-                          className={`w-8 h-8 rounded-lg font-black text-[10px] border ${
-                            slot.days.includes(day.value) ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white/5 border-white/10 text-slate-500'
-                          }`}
-                        >
-                          {day.label}
+                {formData.enrollments?.map((enrollment, idx) => (
+                  <div key={idx} className="p-5 rounded-[2rem] border border-slate-100 bg-slate-50/50 space-y-4 group relative">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollment #{idx + 1}</p>
+                      {formData.enrollments!.length > 1 && (
+                        <button type="button" onClick={() => removeEnrollment(idx)} className="text-red-400 hover:text-red-500 transition-colors">
+                          <Trash2 size={16} />
                         </button>
-                      ))}
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <input type="time" className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-bold" value={slot.startTime} onChange={e => updateTime(slot.id, 'startTime', e.target.value)} />
-                      <input type="time" className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-bold" value={slot.endTime} onChange={e => updateTime(slot.id, 'endTime', e.target.value)} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-500 mb-1 block uppercase">Course</label>
+                        <select className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 font-bold text-xs" value={enrollment.course} onChange={e => updateEnrollment(idx, 'course', e.target.value)}>
+                          {COURSES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-500 mb-1 block uppercase">Target Level</label>
+                        <select className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 font-bold text-xs" value={enrollment.level} onChange={e => updateEnrollment(idx, 'level', e.target.value)}>
+                          {LEVEL_TOPICS.map(lt => <option key={lt.level} value={lt.level}>{lt.level}</option>)}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Profile Information</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input required type="text" placeholder="Full Name" className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} />
+                <select className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold" value={formData.collaboratorId} onChange={e => setFormData({...formData, collaboratorId: e.target.value})}>
+                  <option value="">Direct / Self</option>
+                  {collaborators.map(c => <option key={c.uid} value={c.uid}>{c.displayName || c.email}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input type="tel" placeholder="WhatsApp Number" className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100" value={formData.whatsappNumber} onChange={e => setFormData({...formData, whatsappNumber: e.target.value})} />
+                <input required type="date" className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100" value={formData.joiningDate} onChange={e => setFormData({...formData, joiningDate: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2"><Clock size={14} className="text-amber-500"/> Schedule Plan</h3>
+                <button type="button" onClick={addSlot} className="text-[9px] font-black uppercase text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">Add Slot</button>
+              </div>
+              <div className="space-y-4">
+                {initialSchedules.map((slot, idx) => (
+                  <div key={slot.id} className="p-5 rounded-[2rem] bg-slate-900 text-white space-y-4">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                      <select 
+                        className="bg-transparent text-[10px] font-black uppercase tracking-[0.2em] outline-none text-amber-500"
+                        value={slot.course}
+                        onChange={e => updateSchedule(slot.id, 'course', e.target.value)}
+                      >
+                        {formData.enrollments?.map(e => <option key={e.course} value={e.course}>{e.course}</option>)}
+                      </select>
+                      <button type="button" onClick={() => removeSlot(slot.id)} className="text-red-400"><Trash2 size={16} /></button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DAYS_OF_WEEK.map((day) => (
+                        <button key={day.value} type="button" onClick={() => toggleDay(slot.id, day.value)} className={`w-8 h-8 rounded-lg font-black text-[10px] border ${slot.days.includes(day.value) ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white/5 border-white/10 text-slate-500'}`}>{day.label}</button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <input type="time" className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-bold" value={slot.startTime} onChange={e => updateSchedule(slot.id, 'startTime', e.target.value)} />
+                      <input type="time" className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-bold" value={slot.endTime} onChange={e => updateSchedule(slot.id, 'endTime', e.target.value)} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4 bg-amber-50/50 p-6 rounded-[2rem] border border-amber-100">
+               <h3 className="text-[10px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-2"><CreditCard size={14}/> Consolidated Billing</h3>
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <input type="number" placeholder="Fee Amount" className="w-full px-4 py-3 rounded-xl bg-white border border-amber-200" value={formData.billing?.feeAmount} onChange={e => updateBilling('feeAmount', Number(e.target.value))} />
+                  <input type="number" placeholder="Total Classes" className="w-full px-4 py-3 rounded-xl bg-white border border-amber-200" value={formData.billing?.totalClassesAllowed} onChange={e => updateBilling('totalClassesAllowed', Number(e.target.value))} />
+                  <select className="w-full px-4 py-3 rounded-xl bg-white border border-amber-200 font-bold text-xs" value={formData.billing?.feeStatus} onChange={e => updateBilling('feeStatus', e.target.value)}>
+                    <option value="paid">Paid</option>
+                    <option value="due">Due</option>
+                  </select>
+               </div>
+            </div>
           </div>
 
           <div className="p-6 sm:p-8 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
             <button type="button" onClick={onClose} className="px-6 py-4 font-bold text-slate-400 uppercase text-[10px]">Cancel</button>
-            <button type="submit" className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px]">Save Record</button>
+            <button type="submit" className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] shadow-xl">Commit Records</button>
           </div>
         </form>
       </div>

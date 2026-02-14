@@ -13,19 +13,25 @@ export interface AppUser {
   studentId?: string; // Links user to a student record if role is 'student'
 }
 
+export interface CourseEnrollment {
+  course: string;
+  level: string;
+  currentTopicIndex: number;
+  assignedTopics: string[];
+}
+
 export interface Student {
   id: string;
   fullName: string;
-  email?: string; // Added for student login matching
+  email?: string;
   age: number;
   whatsappNumber?: string;
-  meetingLink?: string; // New: Google Meet / Zoom link
-  course: string;
-  level: string;
+  meetingLink?: string;
   joiningDate: string;
   collaboratorId?: string;
   status: StudentStatus;
-  paymentRequested?: boolean; // New: Flag for when student says they paid
+  paymentRequested?: boolean;
+  enrollments: CourseEnrollment[]; // New: Supports multiple courses
   billing: {
     type: BillingType;
     feeAmount: number;
@@ -33,6 +39,9 @@ export interface Student {
     classesAttended: number;
     feeStatus: FeeStatus;
   };
+  // Legacy fields for backward compatibility during transitions
+  course: string;
+  level: string;
   currentTopicIndex: number;
   assignedTopics: string[];
 }
@@ -42,7 +51,7 @@ export interface LibraryResource {
   title: string;
   category: string;
   url: string;
-  coverImageUrl?: string; // New: Support for cover images
+  coverImageUrl?: string;
   type: 'pdf' | 'link' | 'video';
   addedDate: string;
 }
@@ -57,14 +66,14 @@ export interface Announcement {
 
 export interface Homework {
   id: string;
-  studentId?: string; // If specific to a student
-  level?: string; // If specific to a level
+  studentId?: string;
+  level?: string;
   title: string;
   description: string;
   dueDate: string;
   status: 'pending' | 'submitted' | 'reviewed';
-  resourceLink?: string; // New: Primary task link (Chess.com/Lichess)
-  attachmentUrl?: string; // New: Supporting image/PDF base64
+  resourceLink?: string;
+  attachmentUrl?: string;
 }
 
 export interface GroupBatch {
@@ -83,6 +92,7 @@ export interface ClassSchedule {
   groupId?: string;
   groupName?: string;
   collaboratorId?: string;
+  course: string; // Specific course this schedule slot is for
   days: number[];
   startTime: string;
   endTime: string;
@@ -97,6 +107,7 @@ export interface ClassSession {
   groupId?: string;
   groupName?: string;
   collaboratorId?: string;
+  course: string; // Specific course this session is for
   scheduleId: string;
   start: string;
   end: string;
@@ -111,6 +122,7 @@ export interface AttendanceRecord {
   date: string;
   present: boolean;
   topicCompleted: string;
+  course: string; // Track which course progress was affected
 }
 
 export interface LevelTopic {

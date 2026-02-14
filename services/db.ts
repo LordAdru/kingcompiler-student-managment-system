@@ -130,12 +130,10 @@ export const dbService = {
         return { ...data, id: doc.id } as Homework;
       });
 
-      // If no filters are provided, we are in Admin mode - show everything
       if (!level && !studentId) {
         return allHomework;
       }
 
-      // Filter logic for Student Portal
       return allHomework.filter(h => {
         const isPersonal = studentId && h.studentId === studentId;
         const isLevelWide = level && h.level === level && !h.studentId;
@@ -155,10 +153,8 @@ export const dbService = {
 
   deleteHomework: async (id: string) => {
     if (!id) throw new Error("A valid Document ID is required for deletion.");
-    console.log(`DB: Deleting assignment with ID [${id}]`);
     const docRef = doc(db, COLLECTIONS.HOMEWORK, id);
     await deleteDoc(docRef);
-    console.log(`DB: Assignment [${id}] successfully deleted.`);
   },
 
   getStudents: async (useCache = true): Promise<Student[]> => {
@@ -183,6 +179,15 @@ export const dbService = {
       const snapshot = await getDocs(q);
       const students = snapshot.docs.map((doc: any) => {
         const data = doc.data();
+        // Migrating old records to enrollment array if missing
+        if (!data.enrollments && data.course) {
+          data.enrollments = [{
+            course: data.course,
+            level: data.level,
+            currentTopicIndex: data.currentTopicIndex || 0,
+            assignedTopics: data.assignedTopics || []
+          }];
+        }
         return { status: 'active', ...data, id: doc.id } as Student;
       }).sort((a: Student, b: Student) => (a.fullName || '').localeCompare(b.fullName || ''));
       
@@ -197,7 +202,16 @@ export const dbService = {
     try {
       const studentDoc = await getDoc(doc(db, COLLECTIONS.STUDENTS, id));
       if (studentDoc.exists()) {
-        return { ...studentDoc.data(), id: studentDoc.id } as Student;
+        const data = studentDoc.data();
+        if (!data.enrollments && data.course) {
+          data.enrollments = [{
+            course: data.course,
+            level: data.level,
+            currentTopicIndex: data.currentTopicIndex || 0,
+            assignedTopics: data.assignedTopics || []
+          }];
+        }
+        return { ...data, id: studentDoc.id } as Student;
       }
       return null;
     } catch (err) {
@@ -362,6 +376,7 @@ export const dbService = {
           groupId: schedule.groupId || null,
           groupName: schedule.groupName || null,
           collaboratorId: schedule.collaboratorId || null,
+          course: schedule.course || null,
           scheduleId: schedule.id,
           start,
           end,

@@ -9,7 +9,6 @@ export interface AttendanceResult {
 }
 
 export const academyLogic = {
-  // Main entry point for playing the alarm
   playAcademyChime: () => {
     try {
       const customSound = localStorage.getItem('academy_custom_alarm');
@@ -74,9 +73,10 @@ export const academyLogic = {
 
       // 1. Save Attendance Record
       const attendance: AttendanceRecord = {
-        id: `att_${session.id}_${student.id}`, // Deterministic ID to prevent duplicates
+        id: `att_${session.id}_${student.id}`,
         sessionId: session.id,
         studentId: student.id,
+        course: session.course || 'Unknown',
         date: new Date().toISOString(),
         present: res.present,
         topicCompleted: session.topic || 'Review'
@@ -87,8 +87,12 @@ export const academyLogic = {
       if (res.present) {
         student.billing.classesAttended += 1;
 
-        if (student.currentTopicIndex < student.assignedTopics.length) {
-          student.currentTopicIndex += 1;
+        // Find the correct enrollment track for this session's course
+        const enrollment = student.enrollments.find(e => e.course === session.course);
+        if (enrollment) {
+          if (enrollment.currentTopicIndex < enrollment.assignedTopics.length) {
+            enrollment.currentTopicIndex += 1;
+          }
         }
 
         const remaining = student.billing.totalClassesAllowed - student.billing.classesAttended;
@@ -98,7 +102,7 @@ export const academyLogic = {
         
         await dbService.saveStudent(student);
 
-        // 3. Create/Update Homework with a deterministic ID
+        // 3. Create/Update Homework
         if (res.homework && (res.homework.message || res.homework.link)) {
           const hwId = `hw_${session.id}_${student.id}`;
           const newHomework: Homework = {
@@ -108,7 +112,7 @@ export const academyLogic = {
             description: res.homework.message || 'Complete the assigned task from today\'s session.',
             dueDate: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
             status: 'pending',
-            level: student.level,
+            level: enrollment?.level || 'Intermediate',
             resourceLink: res.homework.link || undefined
           };
           await dbService.saveHomework(newHomework);
@@ -116,7 +120,6 @@ export const academyLogic = {
       }
     }
 
-    // 4. Close the session
     await academyLogic.finalizeSession(session);
   },
 

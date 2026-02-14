@@ -2,6 +2,7 @@
 import { LevelTopic } from './types';
 
 export const LEVEL_TOPICS: LevelTopic[] = [
+  // --- CHESS MASTERCLASS SYLLABUS ---
   {
     level: 'Beginner',
     topics: [
@@ -297,11 +298,170 @@ export const LEVEL_TOPICS: LevelTopic[] = [
       'Mastering the World-Class Advantage',
       'Academy Capstone: Path to World Number One'
     ]
+  },
+
+  // --- WEB DEVELOPMENT WITH AI SYLLABUS ---
+  {
+    level: 'Web Month 1: HTML Basics',
+    topics: [
+      'Class 1: What is Computer, Internet & Website',
+      'Class 2: What is HTML & File creation (.html)',
+      'Class 3: Headings (h1–h3) & Big Bold Page',
+      'Class 4: Paragraph & Line Break - About Me',
+      'Class 5: Text formatting (bold, italic)',
+      'Class 6: Working with Images (img)',
+      'Class 7: Navigation with Links (a)',
+      'Class 8: PROJECT: Personal Introduction Website'
+    ]
+  },
+  {
+    level: 'Web Month 2: HTML Forms',
+    topics: [
+      'Class 9: Interactive Buttons',
+      'Class 10: Text Input fields',
+      'Class 11: Number Input & Validation',
+      'Class 12: Radio Buttons - Choice Picker',
+      'Class 13: Checkboxes - Hobby Selector',
+      'Class 14: Div & Section - Layout Basics',
+      'Class 15: Data Tables - School Marks',
+      'Class 16: PROJECT: Student Information Website'
+    ]
+  },
+  {
+    level: 'Web Month 3: CSS Basics',
+    topics: [
+      'Class 17: What is CSS & Styling Intro',
+      'Class 18: Text Color & Font Sizing',
+      'Class 19: Background Colors & Rainbows',
+      'Class 20: Google Fonts & Typography',
+      'Class 21: Text Alignment & Quote Posters',
+      'Class 22: Box Model: Borders & Outlines',
+      'Class 23: Box Model: Padding & Margin',
+      'Class 24: PROJECT: Styled Profile Website'
+    ]
+  },
+  {
+    level: 'Web Month 4: CSS Layouts',
+    topics: [
+      'Class 25: Width, Height & Sizing',
+      'Class 26: Display: Block vs Inline',
+      'Class 27: Flexbox Introduction',
+      'Class 28: Flexbox Alignment & Spacing',
+      'Class 29: Box Shadows & Elevation',
+      'Class 30: Gradients & Sunset UI',
+      'Class 31: Transition & Simple Animations',
+      'Class 32: PROJECT: Mini Portfolio Website'
+    ]
+  },
+  {
+    level: 'Web Month 5: JS Intro',
+    topics: [
+      'Class 33: What is JS & Console Basics',
+      'Class 34: Variables: let, const & Greeting App',
+      'Class 35: Event Listeners: Button Clicks',
+      'Class 36: Logic: if-else Age Checker',
+      'Class 37: DOM: Reading User Input',
+      'Class 38: Math Operations: Add Numbers',
+      'Class 39: Randomness: Dice Roller App',
+      'Class 40: PROJECT: Fun Calculator'
+    ]
+  },
+  {
+    level: 'Web Month 6: JS Events',
+    topics: [
+      'Class 41: Toggle Logic: Light ON/OFF',
+      'Class 42: Multiple Conditions: Traffic Light',
+      'Class 43: Timeouts: Delayed Messages',
+      'Class 44: Intervals: Countdown Timer',
+      'Class 45: Audio Events: Drum Kit App',
+      'Class 46: Game Logic: Score Counter',
+      'Class 47: Dynamic CSS: Magic Color Changer',
+      'Class 48: PROJECT: Mini Game Website'
+    ]
+  },
+  {
+    level: 'Web Month 7: JS Games',
+    topics: [
+      'Class 49: Game Loop & Thinking',
+      'Class 50: Coordinate Logic: Random Position',
+      'Class 51: Speed Challenge: Timer + Score',
+      'Class 52: Question Logic: Simple Quiz',
+      'Class 53: Data: Intro to Arrays',
+      'Class 54: Random Selection: Quiz Bank',
+      'Class 55: UI Polish: Quiz App Design',
+      'Class 56: PROJECT: Quiz Game App'
+    ]
+  },
+  {
+    level: 'Web Month 8: Logic Apps',
+    topics: [
+      'Class 57: Form Processing with JS',
+      'Class 58: Local Storage: Notes App',
+      'Class 59: Canvas Basics: Drawing App',
+      'Class 60: Social UI: Like Button Logic',
+      'Class 61: Date Object: Digital Clock',
+      'Class 62: Math: Birthday Countdown',
+      'Class 63: App Architecture: Task Manager',
+      'Class 64: PROJECT: Utility App Website'
+    ]
+  },
+  {
+    level: 'Web Month 9: Advanced Logic',
+    topics: [
+      'Class 65: State Management: Guess Game',
+      'Class 66: Loops: Introduction to while',
+      'Class 67: Loops: The for Loop Master',
+      'Class 68: Pattern Logic: Star Patterns',
+      'Class 69: Operators: Even/Odd Logic',
+      'Class 70: Loops + Random: Color Rain',
+      'Class 71: Logic Puzzles: Solve with Code',
+      'Class 72: PROJECT: Logic Games Pack'
+    ]
+  },
+  {
+    level: 'Web Month 10: Game Dev',
+    topics: [
+      'Class 73: RPS Logic: Rules Engine',
+      'Class 74: RPS UI: Animated Choices',
+      'Class 75: Persistence: RPS Scoreboard',
+      'Class 76: Resetting Game State',
+      'Class 77: Memory Logic: Card Flipping',
+      'Class 78: Matching Logic: Validation',
+      'Class 79: Polish: Animation & Sound FX',
+      'Class 80: PROJECT: Game Zone Website'
+    ]
+  },
+  {
+    level: 'Web Month 11: Site Building',
+    topics: [
+      'Class 81: Planning & Wireframes',
+      'Class 82: Home Page: Hero Sections',
+      'Class 83: About Page: Grid Layouts',
+      'Class 84: Contact: Email Integration',
+      'Class 85: Navigation: Responsive Menus',
+      'Class 86: UI: Hover & Scroll Effects',
+      'Class 87: QA: Testing & Cross-Browser',
+      'Class 88: PROJECT: Professional Personal Website'
+    ]
+  },
+  {
+    level: 'Web Month 12: Capstone',
+    topics: [
+      'Class 89: Idea Selection & Scoping',
+      'Class 90: Design Specs & Assets',
+      'Class 91: Core Build: HTML Skeleton',
+      'Class 92: Visual Build: CSS Frameworks',
+      'Class 93: Functional Build: JS Modules',
+      'Class 94: Bug Hunting & Refactoring',
+      'Class 95: Final Touches & Launch Prep',
+      'Class 96: 🎓 GRADUATION: Master Project Launch'
+    ]
   }
 ];
 
 export const COURSES = [
   'Chess Masterclass',
+  'Web Development with AI',
   'Full Stack Web', 
   'Python Data Science', 
   'Mobile App Dev', 
