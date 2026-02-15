@@ -23,7 +23,10 @@ import {
   Plus,
   Layers,
   Sparkles,
-  History
+  History,
+  Copy,
+  CheckCircle2,
+  EyeOff
 } from 'lucide-react';
 import { COURSES, LEVEL_TOPICS } from '../constants';
 
@@ -51,6 +54,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [createdCreds, setCreatedCreds] = useState<{ email: string, pass: string, name: string } | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -131,6 +135,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
           'student', 
           student.id
         );
+        // Show credentials copy modal
+        setCreatedCreds({ email: authConfig.email, pass: authConfig.pass, name: student.fullName });
       } catch (err: any) {
         if (!err.message.includes('already registered')) {
           console.error("Failed to create student auth:", err);
@@ -237,6 +243,54 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
           onClose={() => { setIsModalOpen(false); setEditingStudent(null); }} 
           onSave={handleSave} 
         />
+      )}
+
+      {createdCreds && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+            <div className="p-8 bg-slate-900 text-white flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/20">
+                <ShieldCheck size={32} />
+              </div>
+              <h2 className="text-2xl font-black">Student Portal Active</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-2">Secure access established for {createdCreds.name}</p>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="space-y-4">
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between group">
+                  <div>
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Access Email</p>
+                    <p className="font-bold text-slate-800">{createdCreds.email}</p>
+                  </div>
+                  <button 
+                    onClick={() => { navigator.clipboard.writeText(createdCreds.email); alert('Email copied!'); }}
+                    className="p-2 text-slate-400 hover:text-blue-500 transition-colors"
+                  >
+                    <Copy size={18} />
+                  </button>
+                </div>
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Security Key</p>
+                    <p className="font-bold text-slate-800">{createdCreds.pass}</p>
+                  </div>
+                  <button 
+                    onClick={() => { navigator.clipboard.writeText(createdCreds.pass); alert('Password copied!'); }}
+                    className="p-2 text-slate-400 hover:text-blue-500 transition-colors"
+                  >
+                    <Copy size={18} />
+                  </button>
+                </div>
+              </div>
+              <button 
+                onClick={() => setCreatedCreds(null)}
+                className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-all"
+              >
+                Close & Finish
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -379,6 +433,7 @@ const StudentModal: React.FC<{
   const [deletedScheduleIds, setDeletedScheduleIds] = useState<string[]>([]);
   const [enableAccess, setEnableAccess] = useState(false);
   const [studentPassword, setStudentPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
 
   useEffect(() => {
     if (student) {
@@ -452,6 +507,12 @@ const StudentModal: React.FC<{
 
   const updateBilling = (field: keyof Student['billing'], value: any) => {
     setFormData(prev => ({ ...prev, billing: { ...(prev.billing as any), [field]: value } }));
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    alert(`${label} copied to clipboard!`);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -545,7 +606,7 @@ const StudentModal: React.FC<{
                 <div className="space-y-1.5"><label className="text-[9px] font-black text-amber-700/60 uppercase px-1">Fee Status</label><select className="w-full px-5 py-3 rounded-xl bg-white border border-amber-200 font-black text-sm text-slate-700 outline-none" value={formData.billing?.feeStatus} onChange={e => updateBilling('feeStatus', e.target.value)}><option value="paid">PAID</option><option value="due">DUE</option></select></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5"><label className="text-[9px] font-black text-amber-700/60 uppercase px-1 flex items-center gap-2">Total Classes Allowed</label><input type="number" className="w-full px-5 py-3 rounded-xl bg-white border border-amber-200 font-black text-sm text-slate-700 outline-none" value={formData.billing?.totalClassesAllowed} onChange={e => updateBilling('totalClassesAllowed', Number(e.target.value))} /></div>
+                <div className="space-y-1.5"><label className="text-[9px] font-black text-amber-700/60 uppercase px-1 flex items-center gap-2">Total Classes Allowed</label><input type="number" className="w-full px-5 py-3 rounded-xl bg-white border border-amber-200 font-black text-sm text-slate-700 outline-none" value={formData.billing?.totalClassesAllowed} onChange={updateBilling.bind(null, 'totalClassesAllowed')} /></div>
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-amber-700/60 uppercase px-1 flex items-center gap-2"><History size={12} /> Classes Used (Manual Adjust)</label>
                   <input type="number" className="w-full px-5 py-3 rounded-xl bg-white border border-amber-200 font-black text-sm text-slate-700 outline-none" value={formData.billing?.classesAttended} onChange={e => updateBilling('classesAttended', Number(e.target.value))} />
@@ -558,8 +619,52 @@ const StudentModal: React.FC<{
               <div className="flex items-center justify-between px-1"><h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2"><Key size={16} className="text-blue-500" /> Digital Identity</h3>{!student?.email && <button type="button" onClick={() => setEnableAccess(!enableAccess)} className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg border transition-all ${enableAccess ? 'bg-blue-500 text-white border-blue-500 shadow-lg' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{enableAccess ? 'Portal Enabled' : 'Enable Portal Access'}</button>}</div>
               {(enableAccess || student?.email) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-4">
-                  <input type="email" placeholder="Access Email" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold focus:ring-4 focus:ring-blue-500/10 outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} disabled={!!student?.email} />
-                  {!student?.email && <input type="password" placeholder="Access Key (Min 6)" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold focus:ring-4 focus:ring-blue-500/10 outline-none" value={studentPassword} onChange={e => setStudentPassword(e.target.value)} />}
+                  <div className="relative group">
+                    <input 
+                      type="email" 
+                      placeholder="Access Email" 
+                      className="w-full px-6 py-4 pr-12 rounded-2xl bg-slate-50 border border-slate-100 font-bold focus:ring-4 focus:ring-blue-500/10 outline-none" 
+                      value={formData.email} 
+                      onChange={e => setFormData({...formData, email: e.target.value})} 
+                      disabled={!!student?.email} 
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => copyToClipboard(formData.email || '', 'Email')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-blue-500 transition-colors"
+                      title="Copy Email"
+                    >
+                      <Copy size={16} />
+                    </button>
+                  </div>
+                  {!student?.email && (
+                    <div className="relative group">
+                      <input 
+                        type={showPass ? "text" : "password"} 
+                        placeholder="Access Key (Min 6)" 
+                        className="w-full px-6 py-4 pr-20 rounded-2xl bg-slate-50 border border-slate-100 font-bold focus:ring-4 focus:ring-blue-500/10 outline-none" 
+                        value={studentPassword} 
+                        onChange={e => setStudentPassword(e.target.value)} 
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        <button 
+                          type="button"
+                          onClick={() => setShowPass(!showPass)}
+                          className="p-2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => copyToClipboard(studentPassword, 'Password')}
+                          className="p-2 text-slate-400 hover:text-blue-500 transition-colors"
+                          title="Copy Password"
+                        >
+                          <Copy size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

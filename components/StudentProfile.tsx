@@ -58,6 +58,7 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
   const [activeCourseTab, setActiveCourseTab] = useState(0);
   const [isEditingAttendance, setIsEditingAttendance] = useState(false);
   const [manualAttendance, setManualAttendance] = useState(0);
+  const [isResettingCycle, setIsResettingCycle] = useState(false);
 
   const fetchProfileData = async () => {
     setIsLoading(true);
@@ -104,6 +105,27 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
     await dbService.saveStudent(updatedStudent);
     setStudent(updatedStudent);
     setIsUpdatingStatus(false);
+  };
+
+  const handleStartNewCycle = async () => {
+    if (!student) return;
+    if (!confirm("Confirm payment received? This will reset classes attended to 0 and mark status as PAID.")) return;
+
+    setIsResettingCycle(true);
+    const updatedStudent: Student = {
+      ...student,
+      paymentRequested: false,
+      billing: {
+        ...student.billing,
+        classesAttended: 0,
+        feeStatus: 'paid'
+      }
+    };
+    
+    await dbService.saveStudent(updatedStudent);
+    setStudent(updatedStudent);
+    setManualAttendance(0);
+    setIsResettingCycle(false);
   };
 
   const handleSaveSchedule = async (newSchedule: ClassSchedule) => {
@@ -215,7 +237,7 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
             </div>
           </div>
 
-          <div className={`rounded-[2.5rem] p-8 border-2 shadow-lg ${student.billing.feeStatus === 'due' ? 'bg-red-50 border-red-100' : 'bg-slate-900 text-white border-slate-800'}`}>
+          <div className={`rounded-[2.5rem] p-8 border-2 shadow-lg transition-colors ${student.billing.feeStatus === 'due' ? 'bg-red-50 border-red-100' : 'bg-slate-900 text-white border-slate-800'}`}>
             <div className="flex items-center justify-between mb-8">
               <h3 className={`font-black text-xs uppercase tracking-widest opacity-60`}>Billing & Bank</h3>
               <CreditCard className="text-amber-500" />
@@ -223,13 +245,32 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
             <div className="space-y-6">
               <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-4xl font-black">${student.billing.feeAmount}</p>
+                  <p className={`text-4xl font-black ${student.billing.feeStatus === 'due' ? 'text-slate-900' : 'text-white'}`}>${student.billing.feeAmount}</p>
                   <p className="text-[10px] font-black uppercase tracking-widest mt-1 opacity-60">PER CYCLE REVENUE</p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${student.billing.feeStatus === 'due' ? 'bg-red-500 text-white' : 'bg-green-500/20 text-green-400'}`}>
-                  {student.billing.feeStatus}
-                </span>
+                <button 
+                  onClick={handleStartNewCycle}
+                  disabled={isResettingCycle}
+                  className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center gap-2 ${
+                    student.billing.feeStatus === 'due' 
+                      ? 'bg-red-500 text-white hover:bg-red-600' 
+                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  }`}
+                >
+                  {isResettingCycle ? <RefreshCw size={10} className="animate-spin" /> : <CheckCircle2 size={10} />}
+                  {student.billing.feeStatus === 'due' ? 'MARK AS PAID' : 'PAID'}
+                </button>
               </div>
+              
+              {student.billing.feeStatus === 'due' && (
+                <button 
+                  onClick={handleStartNewCycle}
+                  className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] shadow-xl shadow-red-600/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <RefreshCw size={14} /> Start New Cycle
+                </button>
+              )}
+
               <div className="space-y-3">
                 <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-60">
                   <span>Consumption</span>

@@ -18,7 +18,8 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Copy
 } from 'lucide-react';
 
 export const PartnerManager: React.FC = () => {
@@ -65,21 +66,10 @@ export const PartnerManager: React.FC = () => {
     try {
       await authService.adminCreateUserAccount(email, pass, name, 'collaborator');
       await fetchData();
-      setIsCredsModalOpen(false);
-      alert(`Success! Login credentials for ${email} have been generated.`);
+      // CredentialModal handles showing the generated creds or closing
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     }
-  };
-
-  const seedUKUAE = () => {
-    setEditingPartner({
-      uid: 'pending-' + Date.now(),
-      displayName: 'UKUAE-1',
-      email: 'Goheme4@gmail.com',
-      role: 'collaborator'
-    });
-    setIsCredsModalOpen(true);
   };
 
   return (
@@ -89,22 +79,13 @@ export const PartnerManager: React.FC = () => {
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Partner Directory</h2>
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage collaborations & referrals</p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={seedUKUAE}
-            className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 px-6 py-3 rounded-2xl font-black transition-all shadow-lg text-[10px] uppercase tracking-widest"
-          >
-            <Handshake size={18} />
-            Quick Add UKUAE-1
-          </button>
-          <button 
-            onClick={() => { setEditingPartner(null); setIsModalOpen(true); }}
-            className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-2xl font-black transition-all shadow-lg text-[10px] uppercase tracking-widest"
-          >
-            <UserPlus size={18} />
-            New Partner
-          </button>
-        </div>
+        <button 
+          onClick={() => { setEditingPartner(null); setIsModalOpen(true); }}
+          className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-2xl font-black transition-all shadow-lg text-[10px] uppercase tracking-widest"
+        >
+          <UserPlus size={18} />
+          New Partner
+        </button>
       </div>
 
       <div className="relative max-w-lg">
@@ -169,11 +150,6 @@ export const PartnerManager: React.FC = () => {
                   </td>
                 </tr>
               ))}
-              {filteredPartners.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="p-20 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">No partners registered.</td>
-                </tr>
-              )}
             </tbody>
           </table>
         )}
@@ -182,6 +158,7 @@ export const PartnerManager: React.FC = () => {
       {isModalOpen && (
         <PartnerModal 
           partner={editingPartner} 
+          // Fixed: Changed setEditingStudent to setEditingPartner as setEditingStudent is not defined in this component
           onClose={() => { setIsModalOpen(false); setEditingPartner(null); }} 
           onSave={handleSave} 
         />
@@ -203,6 +180,7 @@ const CredentialModal: React.FC<{ email: string, displayName: string, onClose: (
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDone, setIsDone] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,7 +191,43 @@ const CredentialModal: React.FC<{ email: string, displayName: string, onClose: (
     setIsSubmitting(true);
     await onConfirm(email, password, displayName);
     setIsSubmitting(false);
+    setIsDone(true);
   };
+
+  const copy = (val: string) => {
+    navigator.clipboard.writeText(val);
+    alert('Copied to clipboard!');
+  };
+
+  if (isDone) {
+    return (
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+           <div className="p-8 bg-emerald-500 text-white text-center">
+              <CheckCircle2 size={48} className="mx-auto mb-4" />
+              <h2 className="text-2xl font-black">Partner Access Ready</h2>
+           </div>
+           <div className="p-8 space-y-6">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Email</p>
+                  <p className="font-bold text-slate-800">{email}</p>
+                </div>
+                <button onClick={() => copy(email)} className="p-2 text-slate-400 hover:text-blue-500"><Copy size={18} /></button>
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Generated Key</p>
+                  <p className="font-bold text-slate-800">{password}</p>
+                </div>
+                <button onClick={() => copy(password)} className="p-2 text-slate-400 hover:text-blue-500"><Copy size={18} /></button>
+              </div>
+              <button onClick={onClose} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest">Finish</button>
+           </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -232,7 +246,7 @@ const CredentialModal: React.FC<{ email: string, displayName: string, onClose: (
           <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex gap-3 text-amber-700">
             <ShieldCheck size={20} className="flex-shrink-0" />
             <p className="text-[10px] font-bold uppercase tracking-tight leading-relaxed">
-              This will create a new entry in Firebase Auth. You will NOT be logged out of your session.
+              This will create a new entry in Firebase Auth.
             </p>
           </div>
 

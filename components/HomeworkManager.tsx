@@ -34,7 +34,6 @@ export const HomeworkManager: React.FC = () => {
   }, []);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
-    // Stop event bubbling to ensure the click is isolated to the button
     e.preventDefault();
     e.stopPropagation();
     
@@ -47,20 +46,13 @@ export const HomeworkManager: React.FC = () => {
       setDeletingId(id);
       
       try {
-        // Step 1: Immediate local UI update (The card vanishes instantly)
         setHomeworks(prev => prev.filter(h => h.id !== id));
-        
-        // Step 2: Database purge
         await dbService.deleteHomework(id);
-        
-        console.log(`Homework Manager: Purged assignment ${id}`);
-        // Optional: Silent refresh to ensure sync
         const hData = await dbService.getHomework();
         setHomeworks(hData);
       } catch (err: any) {
         console.error("Delete Operation Failed:", err);
-        alert("Database Error: " + (err.message || "Could not delete assignment. Please check your network connection."));
-        // Step 3: Rollback if it failed
+        alert("Database Error: " + (err.message || "Could not delete assignment."));
         fetchData();
       } finally {
         setDeletingId(null);
@@ -166,23 +158,12 @@ export const HomeworkManager: React.FC = () => {
                     <span className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black uppercase border ${hw.status === 'submitted' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                       <Clock size={10} /> Due: {hw.dueDate}
                     </span>
-                    {hw.resourceLink && (
-                       <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-[9px] font-black uppercase border border-amber-200">
-                         Link Attached
-                       </span>
-                    )}
                   </div>
                 </div>
               </div>
             </div>
           );
         })}
-        {filteredHomeworks.length === 0 && !isLoading && (
-          <div className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-             <ClipboardList size={48} className="mx-auto text-slate-100 mb-4" />
-             <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No assignments published</p>
-          </div>
-        )}
       </div>
 
       {isModalOpen && (
@@ -224,87 +205,77 @@ const HomeworkModal: React.FC<{ students: Student[], onClose: () => void, onSave
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in max-h-[90vh] flex flex-col">
-        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
-          <h2 className="text-xl font-black text-slate-800">Assign Training</h2>
-          <button onClick={onClose}><X className="text-slate-400" /></button>
-        </div>
-        <div className="p-8 space-y-6 overflow-y-auto flex-1">
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Headline</label>
-            <input className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+        <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
+          <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
+            <h2 className="text-xl font-black text-slate-800">Assign Training</h2>
+            <button type="button" onClick={onClose}><X className="text-slate-400" /></button>
           </div>
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Instructions</label>
-            <textarea rows={3} className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
-          </div>
-          
-          <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border border-slate-100">
-             <div>
-                <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest flex items-center gap-2">
-                  <LinkIcon size={12}/> Interactive Link (e.g. Chess.com/Game)
-                </label>
-                <input 
-                  className="w-full px-5 py-3 rounded-xl bg-white border border-slate-100 font-bold text-xs" 
-                  placeholder="https://..."
-                  value={formData.resourceLink} 
-                  onChange={e => setFormData({...formData, resourceLink: e.target.value})} 
-                />
-             </div>
-             <div>
-                <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest flex items-center gap-2">
-                  <ImageIcon size={12}/> Diagram / Task Image
-                </label>
-                <div className="flex gap-4 items-center">
-                   <label className="flex-1 cursor-pointer">
-                      <div className="flex items-center justify-center gap-3 p-4 bg-white border-2 border-dashed border-slate-200 rounded-2xl hover:border-amber-400 hover:bg-amber-50 transition-all text-slate-500 font-bold text-xs uppercase">
-                        <Upload size={18} /> {formData.attachmentUrl ? 'Change Image' : 'Select Image'}
-                      </div>
-                      <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
-                   </label>
-                   {formData.attachmentUrl && (
-                     <div className="w-16 h-16 rounded-xl border border-slate-200 overflow-hidden relative group">
-                        <img src={formData.attachmentUrl} className="w-full h-full object-cover" />
-                        <button 
-                          type="button"
-                          onClick={() => setFormData({...formData, attachmentUrl: ''})}
-                          className="absolute inset-0 bg-red-500/80 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity"
-                        >
-                          <Trash2 size={14}/>
-                        </button>
-                     </div>
-                   )}
-                </div>
-             </div>
-          </div>
+          <div className="p-8 space-y-6 overflow-y-auto flex-1">
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Headline</label>
+              <input required className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Instructions</label>
+              <textarea required rows={3} className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+            </div>
+            
+            <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest flex items-center gap-2">
+                    <LinkIcon size={12}/> Interactive Link
+                  </label>
+                  <input 
+                    className="w-full px-5 py-3 rounded-xl bg-white border border-slate-100 font-bold text-xs" 
+                    placeholder="https://..."
+                    value={formData.resourceLink} 
+                    onChange={e => setFormData({...formData, resourceLink: e.target.value})} 
+                  />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest flex items-center gap-2">
+                    <ImageIcon size={12}/> Diagram / Task Image
+                  </label>
+                  <div className="flex gap-4 items-center">
+                     <label className="flex-1 cursor-pointer">
+                        <div className="flex items-center justify-center gap-3 p-4 bg-white border-2 border-dashed border-slate-200 rounded-2xl hover:border-amber-400 hover:bg-amber-50 transition-all text-slate-500 font-bold text-xs uppercase">
+                          <Upload size={18} /> {formData.attachmentUrl ? 'Change Image' : 'Select Image'}
+                        </div>
+                        <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                     </label>
+                  </div>
+               </div>
+            </div>
 
-          <div className="grid grid-cols-2 gap-4">
-             <div>
-                <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Due Date</label>
-                <input type="date" className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} />
-             </div>
-             <div>
-                <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Target Tier</label>
-                <select className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs" value={formData.level} onChange={e => setFormData({...formData, level: e.target.value, studentId: ''})}>
-                  <option value="">Select Level</option>
-                  {LEVEL_TOPICS.map(l => <option key={l.level} value={l.level}>{l.level}</option>)}
-                </select>
-             </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Due Date</label>
+                  <input type="date" className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Target Tier</label>
+                  <select className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs" value={formData.level} onChange={e => setFormData({...formData, level: e.target.value, studentId: ''})}>
+                    <option value="">Select Level</option>
+                    {LEVEL_TOPICS.map(l => <option key={l.level} value={l.level}>{l.level}</option>)}
+                  </select>
+               </div>
+            </div>
           </div>
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Or Specific Student</label>
-            <select className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs" value={formData.studentId} onChange={e => setFormData({...formData, studentId: e.target.value, level: ''})}>
-              <option value="">Global Broadcast</option>
-              {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
-            </select>
+          <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
+             <button type="button" onClick={onClose} className="flex-1 py-4 font-black uppercase text-[10px] text-slate-400">Cancel</button>
+             <button type="submit" className="flex-[2] bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-slate-800 transition-all">
+               <Save size={14}/> Save Task
+             </button>
           </div>
-        </div>
-        <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
-           <button type="button" onClick={onClose} className="flex-1 py-4 font-black uppercase text-[10px] text-slate-400">Cancel</button>
-           <button type="submit" onClick={() => onSave(formData)} className="flex-[2] bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2"><Save size={14}/> Save Task</button>
-        </div>
+        </form>
       </div>
     </div>
   );
