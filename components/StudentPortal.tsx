@@ -199,10 +199,26 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
                     <p className="text-slate-400 text-base leading-relaxed mb-8">{hw.description}</p>
                     <div className="flex flex-col sm:flex-row gap-4">
                        {hw.resourceLink && (
-                         <button onClick={() => window.open(hw.resourceLink, '_blank')} className="flex-1 bg-amber-500 text-slate-950 py-6 rounded-[1.8rem] font-black uppercase text-sm tracking-widest shadow-2xl active:scale-95"><Play size={22} fill="currentColor" /> Start the Assignment</button>
+                         <button 
+                           onClick={() => window.open(hw.resourceLink, '_blank')} 
+                           className="flex-1 bg-amber-500 text-slate-950 py-6 rounded-[2rem] font-black uppercase text-xs tracking-wider shadow-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-4 group/btn"
+                         >
+                           <div className="w-5 h-5 flex items-center justify-center">
+                             <Play size={20} fill="currentColor" className="text-slate-950 group-hover/btn:scale-110 transition-transform" />
+                           </div>
+                           START THE ASSIGNMENT
+                         </button>
                        )}
-                       <button onClick={() => toggleHomeworkStatus(hw)} disabled={isUpdatingHw === hw.id} className={`flex-1 py-5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${hw.status === 'submitted' ? 'bg-slate-800 text-slate-400' : 'bg-white text-slate-950'}`}>
-                          {hw.status === 'submitted' ? 'Undo' : 'Mark Done'}
+                       <button 
+                         onClick={() => toggleHomeworkStatus(hw)} 
+                         disabled={isUpdatingHw === hw.id} 
+                         className={`flex-1 py-6 rounded-[2rem] font-black uppercase text-xs tracking-wider transition-all shadow-xl active:scale-[0.98] ${
+                           hw.status === 'submitted' 
+                             ? 'bg-slate-800 text-slate-400 border border-white/5' 
+                             : 'bg-white text-slate-950'
+                         }`}
+                       >
+                          {hw.status === 'submitted' ? 'UNDO SUBMISSION' : 'MARK DONE'}
                        </button>
                     </div>
                   </div>
@@ -262,7 +278,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
         <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={Zap} label="Home" />
         <NavButton active={activeTab === 'homework'} onClick={() => setActiveTab('homework')} icon={Target} label="Tasks" />
         <NavButton active={activeTab === 'library'} onClick={() => setActiveTab('library')} icon={BookOpen} label="Library" />
-        <NavButton active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements')} icon={Bell} label="News" />
+        <NavButton active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements'} icon={Bell} label="News" />
       </nav>
     </div>
   );
