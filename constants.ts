@@ -456,12 +456,171 @@ export const LEVEL_TOPICS: LevelTopic[] = [
       'Class 95: Final Touches & Launch Prep',
       'Class 96: 🎓 GRADUATION: Master Project Launch'
     ]
+  },
+
+  // --- PYTHON PROGRAMMING & GAME DEV SYLLABUS ---
+  {
+    level: 'Python Month 1: Logic & Input',
+    topics: [
+      'Class 1: Installation & Making computer talk',
+      'Class 2: Variables: Storing names and numbers',
+      'Class 3: Data Types: Text vs Math',
+      'Class 4: Input: Asking user questions',
+      'Class 5: String Formatting: f-strings',
+      'Class 6: Basic Math: Age Calculator',
+      'Class 7: Error Handling: Bug Hunting',
+      'Class 8: PROJECT: The Roasting Bot'
+    ]
+  },
+  {
+    level: 'Python Month 2: Conditionals',
+    topics: [
+      'Class 9: If and Else: Making choices',
+      'Class 10: Elif: Multiple paths',
+      'Class 11: Comparison Operators (>, <, ==)',
+      'Class 12: Logical Operators (and, or)',
+      'Class 13: Nested Ifs: Decisions inside decisions',
+      'Class 14: Import Random: Generating luck',
+      'Class 15: ATM Machine Logic',
+      'Class 16: PROJECT: Escape the Haunted School'
+    ]
+  },
+  {
+    level: 'Python Month 3: Loops',
+    topics: [
+      'Class 17: While loops: Repeating until stopped',
+      'Class 18: Infinite loops: Crash and Fix',
+      'Class 19: For loops: Counting ranges',
+      'Class 20: Looping through Strings',
+      'Class 21: Break and Continue controls',
+      'Class 22: Bomb Defusal Timer logic',
+      'Class 23: Password Guessing logic',
+      'Class 24: PROJECT: Ultimate Number Guessing Game'
+    ]
+  },
+  {
+    level: 'Python Month 4: Patterns & Lists',
+    topics: [
+      'Class 25: Intro to Lists: Backpack storage',
+      'Class 26: List Methods: append, remove, sort',
+      'Class 27: List Indexing basics',
+      'Class 28: Using for loops with Lists',
+      'Class 29: Nested Loops: Star Patterns',
+      'Class 30: Shopping List App',
+      'Class 31: Random choice from list',
+      'Class 32: PROJECT: RPS Lizard Spock'
+    ]
+  },
+  {
+    level: 'Python Month 5: Functions',
+    topics: [
+      'Class 33: Defining functions: def syntax',
+      'Class 34: Arguments and Parameters',
+      'Class 35: Return values: Getting data back',
+      'Class 36: Local vs Global variables',
+      'Class 37: Currency Converter function',
+      'Class 38: Code Reusability & Imports',
+      'Class 39: Debugging function errors',
+      'Class 40: PROJECT: Superhero Identity Generator'
+    ]
+  },
+  {
+    level: 'Python Month 6: Dictionaries & Files',
+    topics: [
+      'Class 41: Key-Value pairs: Dict basics',
+      'Class 42: Accessing & Modifying dict data',
+      'Class 43: Complex Data: Dicts + Lists',
+      'Class 44: Contact Book logic',
+      'Class 45: JSON Intro: Pro game save data',
+      'Class 46: Simple File I/O: Reading .txt',
+      'Class 47: Writing to .txt: Saving high scores',
+      'Class 48: PROJECT: The Quiz Master'
+    ]
+  },
+  {
+    level: 'Python Month 7: Turtle Graphics',
+    topics: [
+      'Class 49: Turtle Setup & Movement',
+      'Class 50: Colors, Pensize & Speed',
+      'Class 51: Drawing Polygons with Loops',
+      'Class 52: Coordinate System (X, Y axis)',
+      'Class 53: Circles, Dots & Filling Colors',
+      'Class 54: Clickable screen: onclick()',
+      'Class 55: Random Walk Art piece',
+      'Class 56: PROJECT: Digital Spirograph'
+    ]
+  },
+  {
+    level: 'Python Month 8: Turtle Games',
+    topics: [
+      'Class 57: Keyboard bindings: arrow controls',
+      'Class 58: Multiple Turtles: Player Turtles',
+      'Class 59: Collision Detection logic',
+      'Class 60: Boundary checking',
+      'Class 61: Scoreboard: Writing screen text',
+      'Class 62: Game objects: Food spawning',
+      'Class 63: Background & Game Design',
+      'Class 64: PROJECT: Turtle Racing Championship'
+    ]
+  },
+  {
+    level: 'Python Month 9: Modern GUI',
+    topics: [
+      'Class 65: Windows, Titles & Geometry',
+      'Class 66: Labels and Buttons',
+      'Class 67: Entry fields: User text input',
+      'Class 68: Message boxes & Pop-ups',
+      'Class 69: Styling: Fonts & Padding',
+      'Class 70: Layouts: Grid vs Pack',
+      'Class 71: GUI Images: Memes and Icons',
+      'Class 72: PROJECT: The Prank Calculator'
+    ]
+  },
+  {
+    level: 'Python Month 10: Pygame Essentials',
+    topics: [
+      'Class 73: The Game Loop: while running',
+      'Class 74: Window setup & Surface fill',
+      'Class 75: Drawing Rects & Circles',
+      'Class 76: FPS & Clock control',
+      'Class 77: Arrow key movement',
+      'Class 78: Spawning Enemies: Simple AI',
+      'Class 79: Sprite Loading: PNG sprites',
+      'Class 80: PROJECT: Space Meteor Dodger'
+    ]
+  },
+  {
+    level: 'Python Month 11: Physics & Advanced Pygame',
+    topics: [
+      'Class 81: Rect Collision: colliderect()',
+      'Class 82: Gravity Physics: Jumping logic',
+      'Class 83: Score Tracking & High Scores',
+      'Class 84: Infinite World: Background Scrolling',
+      'Class 85: SFX & Music: wav/mp3 integration',
+      'Class 86: Levels & Scaling Difficulty',
+      'Class 87: Game Over & Restart screens',
+      'Class 88: PROJECT: Python Snake 2.0'
+    ]
+  },
+  {
+    level: 'Python Month 12: Capstone Launch',
+    topics: [
+      'Class 89: Idea Selection & Scoping',
+      'Class 90: Asset Design: AI Game Art',
+      'Class 91: Coding Phase: Core Mechanics',
+      'Class 92: Visual Phase: Levels & UI',
+      'Class 93: Peer Testing & Bug Hunt',
+      'Class 94: Polishing: Juice & Particles',
+      'Class 95: Presentation Prep',
+      'Class 96: 🏆 GRADUATION: KingCompiler Expo'
+    ]
   }
 ];
 
 export const COURSES = [
   'Chess Masterclass',
   'Web Development with AI',
+  'Python Game Dev',
   'Full Stack Web', 
   'Python Data Science', 
   'Mobile App Dev', 

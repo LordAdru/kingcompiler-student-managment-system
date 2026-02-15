@@ -35,7 +35,8 @@ import {
   Video,
   ExternalLink,
   ChevronRight,
-  GraduationCap
+  GraduationCap,
+  Edit2
 } from 'lucide-react';
 
 interface ProfileProps {
@@ -55,6 +56,8 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [activeCourseTab, setActiveCourseTab] = useState(0);
+  const [isEditingAttendance, setIsEditingAttendance] = useState(false);
+  const [manualAttendance, setManualAttendance] = useState(0);
 
   const fetchProfileData = async () => {
     setIsLoading(true);
@@ -68,6 +71,7 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
       ]);
       setSchedules(foundSchedules);
       setAttendance(history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setManualAttendance(found.billing.classesAttended);
     }
     setIsLoading(false);
   };
@@ -115,6 +119,20 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
     await fetchProfileData();
   };
 
+  const saveManualAttendance = async () => {
+    if (!student) return;
+    const updatedStudent: Student = {
+      ...student,
+      billing: {
+        ...student.billing,
+        classesAttended: manualAttendance
+      }
+    };
+    await dbService.saveStudent(updatedStudent);
+    setStudent(updatedStudent);
+    setIsEditingAttendance(false);
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-20">
@@ -128,7 +146,6 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
 
   const currentEnrollment = student.enrollments?.[activeCourseTab] || student.enrollments?.[0];
   const progress = (student.billing.classesAttended / student.billing.totalClassesAllowed) * 100;
-  const projectedAnnual = student.billing.feeAmount * 12;
 
   return (
     <div className="space-y-8 animate-in slide-in-from-right-8 duration-500 pb-20">
@@ -216,7 +233,24 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
               <div className="space-y-3">
                 <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-60">
                   <span>Consumption</span>
-                  <span>{student.billing.classesAttended} / {student.billing.totalClassesAllowed} Done</span>
+                  <div className="flex items-center gap-2">
+                    {isEditingAttendance ? (
+                      <div className="flex items-center gap-2 animate-in slide-in-from-right-2">
+                        <input 
+                          type="number" 
+                          className="w-12 bg-white/20 border-none rounded px-1 py-0.5 text-center font-black outline-none" 
+                          value={manualAttendance} 
+                          onChange={e => setManualAttendance(Number(e.target.value))} 
+                        />
+                        <button onClick={saveManualAttendance} className="text-emerald-400 hover:text-emerald-300"><CheckCircle2 size={14} /></button>
+                        <button onClick={() => setIsEditingAttendance(false)} className="text-slate-400 hover:text-white"><XCircle size={14} /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setIsEditingAttendance(true)} className="flex items-center gap-1 hover:text-amber-500 transition-colors">
+                        {student.billing.classesAttended} / {student.billing.totalClassesAllowed} Done <Edit2 size={10} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="h-2.5 w-full rounded-full overflow-hidden bg-white/10 p-0.5">
                   <div className={`h-full rounded-full transition-all duration-1000 ${student.billing.feeStatus === 'due' ? 'bg-red-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(100, progress)}%` }} />

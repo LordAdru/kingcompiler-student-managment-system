@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { ClassSchedule, Student } from '../types';
-import { X, Clock, Calendar, Save, Power, Users } from 'lucide-react';
+import { X, Clock, Calendar, Save, Power, Users, GraduationCap } from 'lucide-react';
+import { COURSES } from '../constants';
 
 interface ScheduleModalProps {
   student?: Student;
@@ -23,18 +24,22 @@ const DAYS_OF_WEEK = [
 ];
 
 export const ScheduleModal: React.FC<ScheduleModalProps> = ({ student, groupId, groupName, schedule, onClose, onSave }) => {
-  const [formData, setFormData] = useState<ClassSchedule>(schedule || {
+  const initialData: ClassSchedule = schedule || {
     id: Math.random().toString(36).substr(2, 9),
-    studentId: student?.id || null,
-    studentName: student?.fullName || null,
-    groupId: groupId || null,
-    groupName: groupName || null,
+    studentId: student?.id || undefined,
+    studentName: student?.fullName || undefined,
+    groupId: groupId || undefined,
+    groupName: groupName || undefined,
+    collaboratorId: student?.collaboratorId || undefined,
+    course: student?.enrollments?.[0]?.course || COURSES[0],
     days: [1, 3], // Mon, Wed default
     startTime: '10:00',
     endTime: '11:00',
     startDate: new Date().toISOString().split('T')[0],
     active: true
-  });
+  };
+
+  const [formData, setFormData] = useState<ClassSchedule>(initialData);
 
   const toggleDay = (dayValue: number) => {
     setFormData(prev => ({
@@ -55,6 +60,10 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ student, groupId, 
   };
 
   const targetName = groupName || student?.fullName;
+  
+  // If editing an existing student, restrict courses to their enrollments.
+  // Otherwise (for groups or global), show all courses.
+  const courseOptions = student?.enrollments?.map(e => e.course) || COURSES;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -74,7 +83,22 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ student, groupId, 
             </button>
           </div>
 
-          <div className="p-8 space-y-8">
+          <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Academic Track</label>
+              <div className="relative">
+                <GraduationCap size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <select 
+                  required
+                  className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 border border-slate-100 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all font-bold text-slate-700 appearance-none"
+                  value={formData.course}
+                  onChange={e => setFormData({...formData, course: e.target.value})}
+                >
+                  {courseOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Recurrence Days</label>
               <div className="flex flex-wrap gap-2">

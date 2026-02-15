@@ -16,6 +16,7 @@ import {
 import { db, auth } from './firebase';
 import { Student, ClassSchedule, ClassSession, AttendanceRecord, GroupBatch, AppUser, LibraryResource, Announcement, Homework } from '../types';
 import { addDays, format, addWeeks, isAfter, isBefore } from 'date-fns';
+import { COURSES } from '../constants';
 
 const COLLECTIONS = {
   STUDENTS: 'students',
@@ -275,7 +276,14 @@ export const dbService = {
       else if (groupId) q = query(coll, where('groupId', '==', groupId));
       else if (role !== 'admin' && uid) q = query(coll, where('collaboratorId', '==', uid));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as ClassSchedule));
+      return snapshot.docs.map((doc: any) => {
+        const data = doc.data();
+        return { 
+          course: COURSES[0], // Fallback for old records
+          ...data, 
+          id: doc.id 
+        } as ClassSchedule;
+      });
     } catch (err) { return []; }
   },
 
