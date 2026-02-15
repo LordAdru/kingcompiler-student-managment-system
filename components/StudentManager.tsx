@@ -135,7 +135,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
           'student', 
           student.id
         );
-        // Show credentials copy modal
         setCreatedCreds({ email: authConfig.email, pass: authConfig.pass, name: student.fullName });
       } catch (err: any) {
         if (!err.message.includes('already registered')) {
@@ -173,27 +172,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
       </div>
 
       <div className="flex p-1.5 bg-slate-100 rounded-[1.5rem] w-fit overflow-x-auto max-w-full custom-scrollbar">
-        <TabButton 
-          active={activeTab === 'active'} 
-          onClick={() => setActiveTab('active')} 
-          label="Active" 
-          count={counts.active}
-          icon={UserCheck}
-        />
-        <TabButton 
-          active={activeTab === 'break'} 
-          onClick={() => setActiveTab('break')} 
-          label="On Break" 
-          count={counts.break}
-          icon={Moon}
-        />
-        <TabButton 
-          active={activeTab === 'all'} 
-          onClick={() => setActiveTab('all')} 
-          label="All Directory" 
-          count={counts.all}
-          icon={UsersIcon}
-        />
+        <TabButton active={activeTab === 'active'} onClick={() => setActiveTab('active')} label="Active" count={counts.active} icon={UserCheck} />
+        <TabButton active={activeTab === 'break'} onClick={() => setActiveTab('break')} label="On Break" count={counts.break} icon={Moon} />
+        <TabButton active={activeTab === 'all'} onClick={() => setActiveTab('all')} label="All Directory" count={counts.all} icon={UsersIcon} />
       </div>
 
       <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -606,7 +587,7 @@ const StudentModal: React.FC<{
                 <div className="space-y-1.5"><label className="text-[9px] font-black text-amber-700/60 uppercase px-1">Fee Status</label><select className="w-full px-5 py-3 rounded-xl bg-white border border-amber-200 font-black text-sm text-slate-700 outline-none" value={formData.billing?.feeStatus} onChange={e => updateBilling('feeStatus', e.target.value)}><option value="paid">PAID</option><option value="due">DUE</option></select></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5"><label className="text-[9px] font-black text-amber-700/60 uppercase px-1 flex items-center gap-2">Total Classes Allowed</label><input type="number" className="w-full px-5 py-3 rounded-xl bg-white border border-amber-200 font-black text-sm text-slate-700 outline-none" value={formData.billing?.totalClassesAllowed} onChange={updateBilling.bind(null, 'totalClassesAllowed')} /></div>
+                <div className="space-y-1.5"><label className="text-[9px] font-black text-amber-700/60 uppercase px-1 flex items-center gap-2">Total Classes Allowed</label><input type="number" className="w-full px-5 py-3 rounded-xl bg-white border border-amber-200 font-black text-sm text-slate-700 outline-none" value={formData.billing?.totalClassesAllowed} onChange={e => updateBilling('totalClassesAllowed', Number(e.target.value))} /></div>
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-amber-700/60 uppercase px-1 flex items-center gap-2"><History size={12} /> Classes Used (Manual Adjust)</label>
                   <input type="number" className="w-full px-5 py-3 rounded-xl bg-white border border-amber-200 font-black text-sm text-slate-700 outline-none" value={formData.billing?.classesAttended} onChange={e => updateBilling('classesAttended', Number(e.target.value))} />

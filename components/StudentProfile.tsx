@@ -237,54 +237,53 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
             </div>
           </div>
 
-          <div className={`rounded-[2.5rem] p-8 border-2 shadow-lg transition-colors ${student.billing.feeStatus === 'due' ? 'bg-red-50 border-red-100' : 'bg-slate-900 text-white border-slate-800'}`}>
+          <div className={`rounded-[2.5rem] p-8 border-2 shadow-lg transition-colors ${student.billing.feeStatus === 'due' ? 'bg-[#fff5f5] border-[#ffe5e5]' : 'bg-white border-slate-100'}`}>
             <div className="flex items-center justify-between mb-8">
-              <h3 className={`font-black text-xs uppercase tracking-widest opacity-60`}>Billing & Bank</h3>
+              <h3 className={`font-black text-[10px] uppercase tracking-widest text-slate-400`}>Billing & Bank</h3>
               <CreditCard className="text-amber-500" />
             </div>
             <div className="space-y-6">
               <div className="flex justify-between items-end">
                 <div>
-                  <p className={`text-4xl font-black ${student.billing.feeStatus === 'due' ? 'text-slate-900' : 'text-white'}`}>${student.billing.feeAmount}</p>
-                  <p className="text-[10px] font-black uppercase tracking-widest mt-1 opacity-60">PER CYCLE REVENUE</p>
+                  <p className="text-4xl font-black text-slate-900">${student.billing.feeAmount}</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest mt-1 text-slate-400">PER CYCLE REVENUE</p>
                 </div>
-                <button 
-                  onClick={handleStartNewCycle}
-                  disabled={isResettingCycle}
-                  className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center gap-2 ${
-                    student.billing.feeStatus === 'due' 
-                      ? 'bg-red-500 text-white hover:bg-red-600' 
-                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                  }`}
-                >
-                  {isResettingCycle ? <RefreshCw size={10} className="animate-spin" /> : <CheckCircle2 size={10} />}
-                  {student.billing.feeStatus === 'due' ? 'MARK AS PAID' : 'PAID'}
-                </button>
+                <div className="flex flex-col items-end gap-2">
+                  <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${
+                    student.billing.feeStatus === 'due' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
+                  }`}>
+                    {student.billing.feeStatus}
+                  </span>
+                </div>
               </div>
               
-              {student.billing.feeStatus === 'due' && (
-                <button 
-                  onClick={handleStartNewCycle}
-                  className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] shadow-xl shadow-red-600/20 transition-all flex items-center justify-center gap-2 active:scale-95"
-                >
-                  <RefreshCw size={14} /> Start New Cycle
-                </button>
-              )}
+              <button 
+                onClick={handleStartNewCycle}
+                disabled={isResettingCycle}
+                className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.1em] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 ${
+                  student.billing.feeStatus === 'due' 
+                    ? 'bg-red-600 hover:bg-red-700 text-white shadow-red-600/20' 
+                    : 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/20'
+                }`}
+              >
+                {isResettingCycle ? <RefreshCw size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                {student.billing.feeStatus === 'due' ? 'START NEW CYCLE (PAID)' : 'FORCE NEW CYCLE'}
+              </button>
 
               <div className="space-y-3">
-                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-60">
+                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
                   <span>Consumption</span>
                   <div className="flex items-center gap-2">
                     {isEditingAttendance ? (
                       <div className="flex items-center gap-2 animate-in slide-in-from-right-2">
                         <input 
                           type="number" 
-                          className="w-12 bg-white/20 border-none rounded px-1 py-0.5 text-center font-black outline-none" 
+                          className="w-12 bg-white border border-slate-200 rounded px-1 py-0.5 text-center font-black outline-none" 
                           value={manualAttendance} 
                           onChange={e => setManualAttendance(Number(e.target.value))} 
                         />
-                        <button onClick={saveManualAttendance} className="text-emerald-400 hover:text-emerald-300"><CheckCircle2 size={14} /></button>
-                        <button onClick={() => setIsEditingAttendance(false)} className="text-slate-400 hover:text-white"><XCircle size={14} /></button>
+                        <button onClick={saveManualAttendance} className="text-emerald-500 hover:text-emerald-600"><CheckCircle2 size={14} /></button>
+                        <button onClick={() => setIsEditingAttendance(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={14} /></button>
                       </div>
                     ) : (
                       <button onClick={() => setIsEditingAttendance(true)} className="flex items-center gap-1 hover:text-amber-500 transition-colors">
@@ -293,8 +292,8 @@ export const StudentProfile: React.FC<ProfileProps> = ({ studentId, onBack }) =>
                     )}
                   </div>
                 </div>
-                <div className="h-2.5 w-full rounded-full overflow-hidden bg-white/10 p-0.5">
-                  <div className={`h-full rounded-full transition-all duration-1000 ${student.billing.feeStatus === 'due' ? 'bg-red-500' : 'bg-amber-500'}`} style={{ width: `${Math.min(100, progress)}%` }} />
+                <div className="h-3 w-full rounded-full overflow-hidden bg-slate-100 p-0.5 border border-slate-200">
+                  <div className={`h-full rounded-full transition-all duration-1000 ${student.billing.feeStatus === 'due' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'}`} style={{ width: `${Math.min(100, progress)}%` }} />
                 </div>
               </div>
             </div>
