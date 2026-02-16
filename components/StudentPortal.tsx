@@ -278,7 +278,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
         <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={Zap} label="Home" />
         <NavButton active={activeTab === 'homework'} onClick={() => setActiveTab('homework')} icon={Target} label="Tasks" />
         <NavButton active={activeTab === 'library'} onClick={() => setActiveTab('library')} icon={BookOpen} label="Library" />
-        <NavButton active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements'} icon={Bell} label="News" />
+        <NavButton active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements')} icon={Bell} label="News" />
       </nav>
     </div>
   );
