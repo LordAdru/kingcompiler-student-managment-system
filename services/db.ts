@@ -300,6 +300,9 @@ export const dbService = {
     await setDoc(doc(db, COLLECTIONS.SCHEDULES, schedule.id), sanitize(schedule), { merge: true });
 
     const existingSessions = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('scheduleId', '==', schedule.id)));
+    await Promise.all(existingSessions.docs
+      .map(sessionDoc => ({ id: sessionDoc.id, ...(sessionDoc.data() as ClassSession) }))
+      .filter(session => (session.status || 'upcoming') !== 'completed')
     const nowIso = new Date().toISOString();
     await Promise.all(existingSessions.docs
       .map(sessionDoc => ({ id: sessionDoc.id, ...(sessionDoc.data() as ClassSession) }))
