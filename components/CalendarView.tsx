@@ -7,14 +7,16 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { dbService } from '../services/db';
 import { academyLogic, AttendanceResult } from '../services/logic';
 import { ClassSession, Student } from '../types';
-import { Calendar as CalendarIcon, Layers } from 'lucide-react';
+import { Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
 import { AttendanceModal } from './AttendanceModal';
+import { format } from 'date-fns';
 
 export const CalendarView: React.FC = () => {
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedSession, setSelectedSession] = useState<ClassSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   const calendarRef = useRef<any>(null);
 
   const fetchData = async () => {
@@ -34,11 +36,14 @@ export const CalendarView: React.FC = () => {
 
   const events = sessions.map(session => {
     let color = '#0f172a'; // Slate-900 default for groups
+    let title = session.groupId ? `BATCH: ${session.groupName}` : session.studentName;
     
     if (session.status === 'completed') {
       color = '#10b981'; // Green
     } else if (session.studentId) {
       color = '#3b82f6'; // Blue for individuals
+      title = `${session.studentName} [${session.studentId}]`;
+      
       const student = students.find(s => s.id === session.studentId);
       if (student) {
         const remaining = student.billing.totalClassesAllowed - student.billing.classesAttended;
@@ -52,16 +57,15 @@ export const CalendarView: React.FC = () => {
 
     return {
       id: session.id,
-      title: session.groupId ? `BATCH: ${session.groupName}` : session.studentName,
+      title: title,
       start: session.start,
       end: session.end,
       backgroundColor: color,
+      editable: session.status === 'upcoming', // Only allow moving upcoming sessions
       extendedProps: { session }
     };
   });
 
-  // Fixed: Removed handleAttendance as academyLogic.processAttendance does not exist.
-  // Fixed: handleFinalize now correctly handles AttendanceResult array from AttendanceModal
   const handleFinalize = async (results: AttendanceResult[]) => {
     if (!selectedSession) return;
     await academyLogic.finalizeSessionWithAttendance(selectedSession, results);
@@ -69,8 +73,38 @@ export const CalendarView: React.FC = () => {
     setSelectedSession(null);
   };
 
+  const handleEventChange = async (changeInfo: any) => {
+    const { event } = changeInfo;
+    const session = event.extendedProps.session as ClassSession;
+    
+    setIsUpdating(true);
+    try {
+      const updatedSession: ClassSession = {
+        ...session,
+        start: format(event.start, "yyyy-MM-dd'T'HH:mm:ss"),
+        end: format(event.end, "yyyy-MM-dd'T'HH:mm:ss")
+      };
+      
+      await dbService.updateSession(updatedSession);
+      setSessions(prev => prev.map(s => s.id === updatedSession.id ? updatedSession : s));
+    } catch (err) {
+      console.error("Reschedule failed:", err);
+      alert("Failed to sync reschedule to cloud. Reverting...");
+      changeInfo.revert();
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
-    <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500">
+    <div className="h-full flex flex-col space-y-4 animate-in fade-in duration-500 relative">
+      {isUpdating && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
+          <RefreshCw size={16} className="animate-spin text-amber-500" />
+          <span className="text-[10px] font-black uppercase tracking-widest">Rescheduling Master...</span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-slate-900 rounded-2xl text-white">
@@ -78,7 +112,7 @@ export const CalendarView: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-black text-slate-800">Academy Calendar</h2>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Master Weekly Schedule</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Interactive Schedule Management</p>
           </div>
         </div>
         <div className="flex gap-6 text-[9px] font-black uppercase tracking-widest text-slate-400">
@@ -106,6 +140,9 @@ export const CalendarView: React.FC = () => {
               right: 'timeGridWeek,timeGridDay'
             }}
             events={events}
+            editable={true}
+            eventDrop={handleEventChange}
+            eventResize={handleEventChange}
             eventClick={(info) => {
               setSelectedSession(info.event.extendedProps.session);
             }}

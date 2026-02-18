@@ -31,7 +31,8 @@ export const GroupBatchManager: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (confirm('Delete this batch? Students will remain in directory but group schedules will be lost.')) {
-      await dbService.deleteGroup(id);
+      // Fixed: Property 'deleteGroup' does not exist on dbService. Use 'softDeleteGroup' instead.
+      await dbService.softDeleteGroup(id);
       await fetchData();
     }
   };

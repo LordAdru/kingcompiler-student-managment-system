@@ -10,12 +10,13 @@ import {
   where, 
   updateDoc,
   limit,
-  orderBy
+  orderBy,
+  writeBatch
 // @ts-ignore
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { db, auth } from './firebase';
 import { Student, ClassSchedule, ClassSession, AttendanceRecord, GroupBatch, AppUser, LibraryResource, Announcement, Homework } from '../types';
-import { addDays, format, addWeeks, isAfter, isBefore } from 'date-fns';
+import { addDays, format, addWeeks, isAfter, isBefore, startOfDay } from 'date-fns';
 import { COURSES } from '../constants';
 
 const COLLECTIONS = {
@@ -158,10 +159,13 @@ export const dbService = {
     await deleteDoc(docRef);
   },
 
-  getStudents: async (useCache = true): Promise<Student[]> => {
-    if (useCache) {
+  getStudents: async (useCache = true, includeDeleted = false): Promise<Student[]> => {
+    if (useCache && !includeDeleted) {
       const cached = localStorage.getItem(CACHE_KEYS.STUDENTS);
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return includeDeleted ? parsed : parsed.filter((s: Student) => !s.isDeleted);
+      }
     }
 
     try {
@@ -180,7 +184,6 @@ export const dbService = {
       const snapshot = await getDocs(q);
       const students = snapshot.docs.map((doc: any) => {
         const data = doc.data();
-        // Migrating old records to enrollment array if missing
         if (!data.enrollments && data.course) {
           data.enrollments = [{
             course: data.course,
@@ -193,9 +196,10 @@ export const dbService = {
       }).sort((a: Student, b: Student) => (a.fullName || '').localeCompare(b.fullName || ''));
       
       localStorage.setItem(CACHE_KEYS.STUDENTS, JSON.stringify(students));
-      return students;
+      return includeDeleted ? students : students.filter(s => !s.isDeleted);
     } catch (err: any) {
-      return JSON.parse(localStorage.getItem(CACHE_KEYS.STUDENTS) || '[]');
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEYS.STUDENTS) || '[]');
+      return includeDeleted ? cached : cached.filter((s: Student) => !s.isDeleted);
     }
   },
 
@@ -225,22 +229,77 @@ export const dbService = {
     const studentRef = doc(db, COLLECTIONS.STUDENTS, student.id);
     await setDoc(studentRef, sanitize(student), { merge: true });
     
-    const current = await dbService.getStudents(true);
-    const updated = current.map(s => s.id === student.id ? student : s);
-    if (!current.find(s => s.id === student.id)) updated.push(student);
-    localStorage.setItem(CACHE_KEYS.STUDENTS, JSON.stringify(updated));
+    // Invalidate local cache
+    localStorage.removeItem(CACHE_KEYS.STUDENTS);
   },
 
-  deleteStudent: async (id: string) => {
+  softDeleteStudent: async (id: string) => {
+    const studentRef = doc(db, COLLECTIONS.STUDENTS, id);
+    await updateDoc(studentRef, { isDeleted: true });
+
+    // Also soft delete sessions
+    const sessionsSnap = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('studentId', '==', id)));
+    for (const d of sessionsSnap.docs) {
+      await updateDoc(doc(db, COLLECTIONS.SESSIONS, d.id), { isDeleted: true });
+    }
+
+    localStorage.removeItem(CACHE_KEYS.STUDENTS);
+    localStorage.removeItem(CACHE_KEYS.SESSIONS);
+  },
+
+  restoreStudent: async (id: string) => {
+    const studentRef = doc(db, COLLECTIONS.STUDENTS, id);
+    await updateDoc(studentRef, { isDeleted: false });
+
+    // Restore sessions too
+    const sessionsSnap = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('studentId', '==', id)));
+    for (const d of sessionsSnap.docs) {
+      await updateDoc(doc(db, COLLECTIONS.SESSIONS, d.id), { isDeleted: false });
+    }
+
+    localStorage.removeItem(CACHE_KEYS.STUDENTS);
+    localStorage.removeItem(CACHE_KEYS.SESSIONS);
+  },
+
+  permanentlyDeleteStudent: async (id: string) => {
+    // 1. Wipe Sessions
+    const sessionsSnap = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('studentId', '==', id)));
+    for (const d of sessionsSnap.docs) {
+      await deleteDoc(doc(db, COLLECTIONS.SESSIONS, d.id));
+    }
+
+    // 2. Wipe Schedules
+    const schedulesSnap = await getDocs(query(collection(db, COLLECTIONS.SCHEDULES), where('studentId', '==', id)));
+    for (const d of schedulesSnap.docs) {
+      await deleteDoc(doc(db, COLLECTIONS.SCHEDULES, d.id));
+    }
+
+    // 3. Wipe Attendance
+    const attendanceSnap = await getDocs(query(collection(db, COLLECTIONS.ATTENDANCE), where('studentId', '==', id)));
+    for (const d of attendanceSnap.docs) {
+      await deleteDoc(doc(db, COLLECTIONS.ATTENDANCE, d.id));
+    }
+
+    // 4. Wipe User Account if exists
+    const usersSnap = await getDocs(query(collection(db, COLLECTIONS.USERS), where('studentId', '==', id)));
+    for (const d of usersSnap.docs) {
+      await deleteDoc(doc(db, COLLECTIONS.USERS, d.id));
+    }
+
+    // 5. Delete Student Record Last
     await deleteDoc(doc(db, COLLECTIONS.STUDENTS, id));
-    const current = await dbService.getStudents(true);
-    localStorage.setItem(CACHE_KEYS.STUDENTS, JSON.stringify(current.filter(s => s.id !== id)));
+
+    localStorage.removeItem(CACHE_KEYS.STUDENTS);
+    localStorage.removeItem(CACHE_KEYS.SESSIONS);
   },
 
-  getGroups: async (useCache = true): Promise<GroupBatch[]> => {
-    if (useCache) {
+  getGroups: async (useCache = true, includeDeleted = false): Promise<GroupBatch[]> => {
+    if (useCache && !includeDeleted) {
       const cached = localStorage.getItem(CACHE_KEYS.GROUPS);
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return includeDeleted ? parsed : parsed.filter((g: GroupBatch) => !g.isDeleted);
+      }
     }
     try {
       const { role } = await getCurrentUserRole();
@@ -249,22 +308,36 @@ export const dbService = {
       const groups = snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as GroupBatch))
         .sort((a: GroupBatch, b: GroupBatch) => (a.name || '').localeCompare(b.name || ''));
       localStorage.setItem(CACHE_KEYS.GROUPS, JSON.stringify(groups));
-      return groups;
-    } catch (err) { return JSON.parse(localStorage.getItem(CACHE_KEYS.GROUPS) || '[]'); }
+      return includeDeleted ? groups : groups.filter(g => !g.isDeleted);
+    } catch (err) { 
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEYS.GROUPS) || '[]');
+      return includeDeleted ? cached : cached.filter((g: GroupBatch) => !g.isDeleted);
+    }
   },
 
   saveGroup: async (group: GroupBatch) => {
     await setDoc(doc(db, COLLECTIONS.GROUPS, group.id), sanitize(group), { merge: true });
-    const current = await dbService.getGroups(true);
-    const updated = current.map(g => g.id === group.id ? group : g);
-    if (!current.find(g => g.id === group.id)) updated.push(group);
-    localStorage.setItem(CACHE_KEYS.GROUPS, JSON.stringify(updated));
+    localStorage.removeItem(CACHE_KEYS.GROUPS);
   },
 
-  deleteGroup: async (id: string) => {
-    await deleteDoc(doc(db, COLLECTIONS.GROUPS, id));
-    const current = await dbService.getGroups(true);
-    localStorage.setItem(CACHE_KEYS.GROUPS, JSON.stringify(current.filter(g => g.id !== id)));
+  softDeleteGroup: async (id: string) => {
+    await updateDoc(doc(db, COLLECTIONS.GROUPS, id), { isDeleted: true });
+    
+    // Also soft delete group sessions
+    const sessionsSnap = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('groupId', '==', id)));
+    for (const d of sessionsSnap.docs) {
+      await updateDoc(doc(db, COLLECTIONS.SESSIONS, d.id), { isDeleted: true });
+    }
+    localStorage.removeItem(CACHE_KEYS.GROUPS);
+    localStorage.removeItem(CACHE_KEYS.SESSIONS);
+  },
+
+  getSchedule: async (id: string): Promise<ClassSchedule | null> => {
+    try {
+      const docSnap = await getDoc(doc(db, COLLECTIONS.SCHEDULES, id));
+      if (docSnap.exists()) return { ...docSnap.data(), id: docSnap.id } as ClassSchedule;
+      return null;
+    } catch (err) { return null; }
   },
 
   getSchedules: async (studentId?: string, groupId?: string): Promise<ClassSchedule[]> => {
@@ -276,14 +349,8 @@ export const dbService = {
       else if (groupId) q = query(coll, where('groupId', '==', groupId));
       else if (role !== 'admin' && uid) q = query(coll, where('collaboratorId', '==', uid));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc: any) => {
-        const data = doc.data();
-        return { 
-          course: COURSES[0], // Fallback for old records
-          ...data, 
-          id: doc.id 
-        } as ClassSchedule;
-      });
+      return snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as ClassSchedule))
+        .filter(s => !s.isDeleted);
     } catch (err) { return []; }
   },
 
@@ -293,13 +360,24 @@ export const dbService = {
   },
 
   deleteSchedule: async (id: string) => {
-    await deleteDoc(doc(db, COLLECTIONS.SCHEDULES, id));
+    // We soft delete schedules for record keeping but hide them immediately
+    await updateDoc(doc(db, COLLECTIONS.SCHEDULES, id), { isDeleted: true });
+
+    // Cascading Soft Delete for Sessions
+    const sessionsSnap = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('scheduleId', '==', id)));
+    for (const d of sessionsSnap.docs) {
+      await updateDoc(doc(db, COLLECTIONS.SESSIONS, d.id), { isDeleted: true });
+    }
+    localStorage.removeItem(CACHE_KEYS.SESSIONS);
   },
 
-  getSessions: async (useCache = true): Promise<ClassSession[]> => {
-    if (useCache) {
+  getSessions: async (useCache = true, includeDeleted = false): Promise<ClassSession[]> => {
+    if (useCache && !includeDeleted) {
       const cached = localStorage.getItem(CACHE_KEYS.SESSIONS);
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return parsed.filter((s: ClassSession) => !s.isDeleted);
+      }
     }
     try {
       const { role, uid } = await getCurrentUserRole();
@@ -310,14 +388,21 @@ export const dbService = {
       const sessions = snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as ClassSession))
         .sort((a: ClassSession, b: ClassSession) => (a.start || "").localeCompare(b.start || ""));
       localStorage.setItem(CACHE_KEYS.SESSIONS, JSON.stringify(sessions));
-      return sessions;
-    } catch (err) { return JSON.parse(localStorage.getItem(CACHE_KEYS.SESSIONS) || '[]'); }
+      return includeDeleted ? sessions : sessions.filter(s => !s.isDeleted);
+    } catch (err) { 
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEYS.SESSIONS) || '[]');
+      return includeDeleted ? cached : cached.filter((s: ClassSession) => !s.isDeleted);
+    }
   },
 
   updateSession: async (updatedSession: ClassSession) => {
     await updateDoc(doc(db, COLLECTIONS.SESSIONS, updatedSession.id), sanitize(updatedSession));
-    const current = await dbService.getSessions(true);
-    localStorage.setItem(CACHE_KEYS.SESSIONS, JSON.stringify(current.map(s => s.id === updatedSession.id ? updatedSession : s)));
+    localStorage.removeItem(CACHE_KEYS.SESSIONS);
+  },
+
+  deleteSession: async (id: string) => {
+    await deleteDoc(doc(db, COLLECTIONS.SESSIONS, id));
+    localStorage.removeItem(CACHE_KEYS.SESSIONS);
   },
 
   getAttendance: async (studentId?: string): Promise<AttendanceRecord[]> => {
@@ -352,18 +437,36 @@ export const dbService = {
   syncAllSessions: async () => {
     const schedules = await dbService.getSchedules();
     for (const schedule of schedules) {
-      if (schedule.active) await dbService.generateSessionsForSchedule(schedule);
+      if (schedule.active && !schedule.isDeleted) await dbService.generateSessionsForSchedule(schedule);
     }
   },
 
   generateSessionsForSchedule: async (schedule: ClassSchedule) => {
-    if (!schedule.active) return;
+    if (!schedule.active || schedule.isDeleted) return;
     
+    // CRITICAL: Clean up future "upcoming" sessions for this schedule first to prevent double/wrong scheduling
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const existingSnap = await getDocs(query(
+      collection(db, COLLECTIONS.SESSIONS), 
+      where('scheduleId', '==', schedule.id),
+      where('status', '==', 'upcoming')
+    ));
+    
+    for (const d of existingSnap.docs) {
+      const sess = d.data() as ClassSession;
+      // Only wipe if it is today or in the future
+      if (sess.start.startsWith(todayStr) || sess.start > todayStr) {
+        await deleteDoc(doc(db, COLLECTIONS.SESSIONS, d.id));
+      }
+    }
+
     if (schedule.studentId) {
       const studentDoc = await getDoc(doc(db, COLLECTIONS.STUDENTS, schedule.studentId));
       if (studentDoc.exists()) {
         const studentData = studentDoc.data() as Student;
-        if (studentData.status === 'break') return;
+        if (studentData.status === 'break' || studentData.isDeleted) return;
+      } else {
+        return;
       }
     }
 
@@ -371,6 +474,7 @@ export const dbService = {
     const projectionLimit = addWeeks(today, 3);
     const scheduleStartDate = new Date(schedule.startDate + 'T00:00:00');
     let current = isAfter(scheduleStartDate, today) ? scheduleStartDate : today;
+    
     while (isBefore(current, projectionLimit)) {
       if (schedule.days.includes(current.getDay())) {
         const dateStr = format(current, 'yyyy-MM-dd');
@@ -389,7 +493,8 @@ export const dbService = {
           start,
           end,
           status: 'upcoming',
-          topic: 'Scheduled Session'
+          topic: 'Scheduled Session',
+          isDeleted: false
         }), { merge: true });
       }
       current = addDays(current, 1);

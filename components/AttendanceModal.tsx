@@ -15,11 +15,17 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  RefreshCw
+  RefreshCw,
+  Fingerprint,
+  Copy,
+  Trash2,
+  Settings2,
+  CalendarDays
 } from 'lucide-react';
-import { ClassSession, Student, GroupBatch } from '../types';
+import { ClassSession, Student, GroupBatch, ClassSchedule } from '../types';
 import { dbService } from '../services/db';
 import { AttendanceResult } from '../services/logic';
+import { ScheduleModal } from './ScheduleModal';
 
 interface AttendanceModalProps {
   session: ClassSession;
@@ -36,11 +42,19 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
   const [expandedHw, setExpandedHw] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [masterSchedule, setMasterSchedule] = useState<ClassSchedule | null>(null);
 
   useEffect(() => {
     const loadDetails = async () => {
       setIsLoading(true);
-      const allStudents = await dbService.getStudents();
+      const [allStudents, schedule] = await Promise.all([
+        dbService.getStudents(),
+        dbService.getSchedule(session.scheduleId)
+      ]);
+      
+      setMasterSchedule(schedule);
+
       if (session.groupId) {
         const allGroups = await dbService.getGroups();
         const foundGroup = allGroups.find(g => g.id === session.groupId);
@@ -75,6 +89,11 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
     }));
   };
 
+  const copyToClipboard = (id: string) => {
+    navigator.clipboard.writeText(id);
+    alert(`ID: ${id} copied to clipboard!`);
+  };
+
   const handleCommitFinalize = async () => {
     const totalStudents = students.length;
     const processedCount = Object.keys(processedMap).length;
@@ -96,6 +115,23 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
     setIsFinishing(false);
   };
 
+  const handlePurgeSession = async () => {
+    if (confirm('Permanently remove this session instance from the calendar? This will NOT affect the recurring schedule.')) {
+      setIsFinishing(true);
+      await dbService.deleteSession(session.id);
+      setIsFinishing(false);
+      onClose();
+      window.location.reload();
+    }
+  };
+
+  const handleSaveMasterSchedule = async (newSchedule: ClassSchedule) => {
+    await dbService.saveSchedule(newSchedule);
+    setIsRescheduling(false);
+    onClose();
+    window.location.reload();
+  };
+
   const isBatch = !!session.groupId;
 
   return (
@@ -103,21 +139,48 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
       <div className="bg-[#0f172a] rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[95vh] border border-white/10">
         
         <div className="p-8 sm:p-10 relative shrink-0">
-          <button onClick={onClose} className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors p-2 bg-white/5 rounded-full">
-            <X size={24} />
-          </button>
+          <div className="absolute top-8 right-8 flex items-center gap-2">
+             <button 
+              onClick={() => setIsRescheduling(true)}
+              className="text-white/40 hover:text-amber-500 transition-colors p-2 bg-white/5 rounded-full"
+              title="Edit Master Schedule"
+             >
+               <Settings2 size={20} />
+             </button>
+             <button 
+              onClick={handlePurgeSession}
+              className="text-white/40 hover:text-red-500 transition-colors p-2 bg-white/5 rounded-full"
+              title="Purge This Instance"
+             >
+               <Trash2 size={20} />
+             </button>
+             <button onClick={onClose} className="text-white/40 hover:text-white transition-colors p-2 bg-white/5 rounded-full">
+               <X size={24} />
+             </button>
+          </div>
           
           <div className="flex items-center gap-5 mb-10">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]">
-              <Plus size={32} />
+              {isBatch ? <Users size={32} /> : <Plus size={32} />}
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-3xl font-black text-white truncate max-w-[300px] tracking-tight">
                 {isBatch ? session.groupName : session.studentName}
               </h2>
-              <p className="text-slate-400 text-xs font-bold tracking-[0.2em] uppercase">
-                {isBatch ? 'BATCH SESSION' : 'PRIVATE SESSION'}
-              </p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-slate-400 text-[10px] font-black tracking-[0.2em] uppercase">
+                  {isBatch ? 'BATCH SESSION' : 'PRIVATE SESSION'}
+                </p>
+                {!isBatch && session.studentId && (
+                  <button 
+                    onClick={() => copyToClipboard(session.studentId!)}
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[9px] font-black uppercase tracking-widest hover:bg-amber-500/20 transition-all"
+                  >
+                    <Fingerprint size={10} />
+                    ID: {session.studentId}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -171,7 +234,19 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
                             {s.fullName}
                             {isDue && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Payment Warning"/>}
                           </p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">SESSIONS: {s.billing.classesAttended}/{s.billing.totalClassesAllowed}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                              SESSIONS: {s.billing.classesAttended}/{s.billing.totalClassesAllowed}
+                            </p>
+                            <span className="w-1 h-1 rounded-full bg-slate-200"></span>
+                            <button 
+                              onClick={() => copyToClipboard(s.id)}
+                              className="flex items-center gap-1 text-[9px] font-black text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded uppercase tracking-widest hover:bg-blue-100 transition-all"
+                            >
+                              <Fingerprint size={10} />
+                              {s.id}
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -253,6 +328,14 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
           </div>
         )}
       </div>
+
+      {isRescheduling && masterSchedule && (
+        <ScheduleModal 
+          schedule={masterSchedule}
+          onClose={() => setIsRescheduling(false)}
+          onSave={handleSaveMasterSchedule}
+        />
+      )}
     </div>
   );
 };

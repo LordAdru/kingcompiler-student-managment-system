@@ -26,7 +26,9 @@ import {
   History,
   Copy,
   CheckCircle2,
-  EyeOff
+  EyeOff,
+  RotateCcw,
+  Fingerprint
 } from 'lucide-react';
 import { COURSES, LEVEL_TOPICS } from '../constants';
 
@@ -44,7 +46,7 @@ const DAYS_OF_WEEK = [
   { label: 'S', value: 6 },
 ];
 
-type FilterTab = 'active' | 'break' | 'all';
+type FilterTab = 'active' | 'break' | 'deleted' | 'all';
 
 export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent }) => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -59,7 +61,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
   const fetchData = async () => {
     setIsLoading(true);
     const [sData, cData] = await Promise.all([
-      dbService.getStudents(),
+      dbService.getStudents(false, true), // Include deleted for management
       dbService.getCollaborators()
     ]);
     setStudents(sData);
@@ -72,31 +74,46 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
   }, []);
 
   const counts = useMemo(() => ({
-    all: students.length,
-    active: students.filter(s => s.status === 'active').length,
-    break: students.filter(s => s.status === 'break').length,
+    all: students.filter(s => !s.isDeleted).length,
+    active: students.filter(s => s.status === 'active' && !s.isDeleted).length,
+    break: students.filter(s => s.status === 'break' && !s.isDeleted).length,
+    deleted: students.filter(s => s.isDeleted).length,
   }), [students]);
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
       const matchesSearch = 
         s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (s.whatsappNumber && s.whatsappNumber.includes(searchTerm));
       
       const matchesTab = 
-        activeTab === 'all' || 
-        (activeTab === 'active' && s.status === 'active') ||
-        (activeTab === 'break' && s.status === 'break');
+        (activeTab === 'all' && !s.isDeleted) || 
+        (activeTab === 'active' && s.status === 'active' && !s.isDeleted) ||
+        (activeTab === 'break' && s.status === 'break' && !s.isDeleted) ||
+        (activeTab === 'deleted' && s.isDeleted);
 
       return matchesSearch && matchesTab;
     });
   }, [students, searchTerm, activeTab]);
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure? This will delete the student and all their schedules.')) {
-      await dbService.deleteStudent(id);
+  const handleSoftDelete = async (id: string) => {
+    if (confirm('Move to Recycle Bin? They will be hidden from Agenda and Calendar immediately.')) {
+      await dbService.softDeleteStudent(id);
       await fetchData();
     }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    if (confirm(`DANGER: This will permanently purge ALL data for ID: ${id}. This action cannot be undone.`)) {
+      await dbService.permanentlyDeleteStudent(id);
+      await fetchData();
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    await dbService.restoreStudent(id);
+    await fetchData();
   };
 
   const handleSave = async (student: Student, schedules: any[], deletedScheduleIds: string[], authConfig?: { email: string, pass: string }) => {
@@ -121,7 +138,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
         startTime: sch.startTime,
         endTime: sch.endTime,
         startDate: student.joiningDate,
-        active: sch.active ?? true
+        active: sch.active ?? true,
+        isDeleted: false
       };
       await dbService.saveSchedule(schedule);
     }
@@ -156,7 +174,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder="Search directory..."
+            placeholder="Search name or ID..."
             className="w-full pl-12 pr-4 py-4 rounded-[1.5rem] border border-slate-200 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all shadow-sm bg-white font-medium"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -174,7 +192,8 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
       <div className="flex p-1.5 bg-slate-100 rounded-[1.5rem] w-fit overflow-x-auto max-w-full custom-scrollbar">
         <TabButton active={activeTab === 'active'} onClick={() => setActiveTab('active')} label="Active" count={counts.active} icon={UserCheck} />
         <TabButton active={activeTab === 'break'} onClick={() => setActiveTab('break')} label="On Break" count={counts.break} icon={Moon} />
-        <TabButton active={activeTab === 'all'} onClick={() => setActiveTab('all')} label="All Directory" count={counts.all} icon={UsersIcon} />
+        <TabButton active={activeTab === 'all'} onClick={() => setActiveTab('all')} label="All" count={counts.all} icon={UsersIcon} />
+        <TabButton active={activeTab === 'deleted'} onClick={() => setActiveTab('deleted')} label="Recycle Bin" count={counts.deleted} icon={Trash2} />
       </div>
 
       <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -184,7 +203,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
           <table className="w-full text-left">
             <thead className="bg-slate-50/50 border-b border-slate-100">
               <tr>
-                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Info</th>
+                <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Info / ID</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Tracks</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Partner/Source</th>
                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
@@ -201,7 +220,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
                     collaboratorName={coll?.displayName || coll?.email?.split('@')[0] || 'Direct'}
                     onSelect={onSelectStudent} 
                     onEdit={(s) => { setEditingStudent(s); setIsModalOpen(true); }} 
-                    onDelete={handleDelete} 
+                    onDelete={handleSoftDelete}
+                    onPermanentDelete={handlePermanentDelete}
+                    onRestore={handleRestore}
                   />
                 );
               })}
@@ -213,7 +234,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({ onSelectStudent 
 
       <div className="lg:hidden space-y-4">
         {isLoading ? <LoadingState /> : filteredStudents.map(s => (
-          <StudentCard key={s.id} student={s} onSelect={onSelectStudent} onEdit={(s) => { setEditingStudent(s); setIsModalOpen(true); }} onDelete={handleDelete} />
+          <StudentCard key={s.id} student={s} onSelect={onSelectStudent} onEdit={(s) => { setEditingStudent(s); setIsModalOpen(true); }} onDelete={handleSoftDelete} />
         ))}
       </div>
 
@@ -295,30 +316,38 @@ const LoadingState = () => (
 const EmptyState = ({ tab }: { tab: string }) => (
   <div className="p-24 text-center">
     <div className="bg-slate-50 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-slate-200"><UsersIcon size={40} /></div>
-    <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">No students found</p>
+    <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">No {tab === 'deleted' ? 'archived' : ''} students found</p>
   </div>
 );
 
-const StudentTableRow = ({ student, collaboratorName, onSelect, onEdit, onDelete }: any) => (
-  <tr className={`hover:bg-slate-50/50 transition-colors group ${student.status === 'break' ? 'bg-slate-50/20' : ''}`}>
+const StudentTableRow = ({ student, collaboratorName, onSelect, onEdit, onDelete, onPermanentDelete, onRestore }: any) => (
+  <tr className={`hover:bg-slate-50/50 transition-colors group ${student.isDeleted ? 'bg-red-50/10' : student.status === 'break' ? 'bg-slate-50/20' : ''}`}>
     <td className="px-8 py-6">
       <div className="flex items-center gap-5">
-        <div className={`w-12 h-12 rounded-[1rem] flex items-center justify-center font-black transition-all ${student.status === 'break' ? 'bg-slate-200 text-slate-400' : 'bg-white border border-slate-100 text-slate-400 group-hover:bg-amber-100 group-hover:text-amber-600 shadow-sm'}`}>
-          {student.status === 'break' ? <Moon size={20} /> : student.fullName.charAt(0)}
+        <div className={`w-12 h-12 rounded-[1rem] flex items-center justify-center font-black transition-all ${student.isDeleted ? 'bg-red-100 text-red-500' : student.status === 'break' ? 'bg-slate-200 text-slate-400' : 'bg-white border border-slate-100 text-slate-400 group-hover:bg-amber-100 group-hover:text-amber-600 shadow-sm'}`}>
+          {student.isDeleted ? <Trash2 size={20} /> : student.status === 'break' ? <Moon size={20} /> : student.fullName.charAt(0)}
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <p className="font-black text-slate-800 leading-tight">{student.fullName}</p>
-            {student.status === 'break' && <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest flex items-center gap-1"><Moon size={8} /> Break</span>}
+            <p className={`font-black text-slate-800 leading-tight ${student.isDeleted ? 'opacity-50' : ''}`}>{student.fullName}</p>
+            {student.status === 'break' && !student.isDeleted && <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest flex items-center gap-1"><Moon size={8} /> Break</span>}
+            {student.isDeleted && <span className="bg-red-100 text-red-700 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest">Deleted</span>}
           </div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Age: {student.age} • Since {student.joiningDate}</p>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Age: {student.age}</span>
+            <span className="w-1 h-1 rounded-full bg-slate-200"></span>
+            <div className="flex items-center gap-1 text-[9px] font-black text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+              <Fingerprint size={10} className="text-slate-300" />
+              {student.id}
+            </div>
+          </div>
         </div>
       </div>
     </td>
     <td className="px-8 py-6">
       <div className="flex flex-wrap gap-2">
         {student.enrollments?.map((e: CourseEnrollment, i: number) => (
-          <span key={i} className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-[9px] font-black uppercase border border-amber-100">{e.course}</span>
+          <span key={i} className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${student.isDeleted ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{e.course}</span>
         ))}
       </div>
     </td>
@@ -329,38 +358,50 @@ const StudentTableRow = ({ student, collaboratorName, onSelect, onEdit, onDelete
       </div>
     </td>
     <td className="px-8 py-6">
-      <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border ${student.billing.feeStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'}`}>{student.billing.feeStatus}</span>
+      <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border ${student.isDeleted ? 'bg-slate-50 text-slate-400 border-slate-200' : student.billing.feeStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'}`}>{student.isDeleted ? 'Archived' : student.billing.feeStatus}</span>
     </td>
     <td className="px-8 py-6 text-right">
       <div className="flex items-center justify-end gap-2">
-        <button onClick={() => onSelect(student.id)} className="p-2 text-slate-400 hover:text-slate-900"><Eye size={18} /></button>
-        <button onClick={() => onEdit(student)} className="p-2 text-slate-400 hover:text-amber-600"><Edit2 size={18} /></button>
-        <button onClick={() => onDelete(student.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={18} /></button>
+        {student.isDeleted ? (
+          <>
+            <button onClick={() => onRestore(student.id)} title="Restore Student" className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl"><RotateCcw size={18} /></button>
+            <button onClick={() => onPermanentDelete(student.id)} title="Purge Permanently" className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => onSelect(student.id)} className="p-2 text-slate-400 hover:text-slate-900"><Eye size={18} /></button>
+            <button onClick={() => onEdit(student)} className="p-2 text-slate-400 hover:text-amber-600"><Edit2 size={18} /></button>
+            <button onClick={() => onDelete(student.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={18} /></button>
+          </>
+        )}
       </div>
     </td>
   </tr>
 );
 
 const StudentCard = ({ student, onSelect, onEdit, onDelete }: any) => (
-  <div className={`bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6 ${student.status === 'break' ? 'opacity-70' : ''}`}>
+  <div className={`bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6 ${student.isDeleted ? 'border-red-200' : student.status === 'break' ? 'opacity-70' : ''}`}>
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black ${student.status === 'break' ? 'bg-slate-200 text-slate-400' : 'bg-amber-500 text-white'}`}>
-          {student.status === 'break' ? <Moon size={24} /> : student.fullName.charAt(0)}
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black ${student.isDeleted ? 'bg-red-500 text-white' : student.status === 'break' ? 'bg-slate-200 text-slate-400' : 'bg-amber-500 text-white'}`}>
+          {student.isDeleted ? <Trash2 size={24} /> : student.status === 'break' ? <Moon size={24} /> : student.fullName.charAt(0)}
         </div>
         <div>
           <p className="font-black text-slate-900 text-lg leading-tight">{student.fullName}</p>
-          <div className="flex flex-wrap gap-1 mt-1">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">ID: {student.id}</p>
+          <div className="flex flex-wrap gap-1 mt-2">
             {student.enrollments?.map((e: any, i: number) => <span key={i} className="text-[8px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 uppercase">{e.course}</span>)}
           </div>
         </div>
       </div>
-      <div className="flex gap-1">
-        <button onClick={() => onEdit(student)} className="p-2 text-slate-400"><Edit2 size={18} /></button>
-        <button onClick={() => onDelete(student.id)} className="p-2 text-slate-400"><Trash2 size={18} /></button>
-      </div>
+      {!student.isDeleted && (
+        <div className="flex gap-1">
+          <button onClick={() => onEdit(student)} className="p-2 text-slate-400"><Edit2 size={18} /></button>
+          <button onClick={() => onDelete(student.id)} className="p-2 text-slate-400"><Trash2 size={18} /></button>
+        </div>
+      )}
     </div>
-    <button onClick={() => onSelect(student.id)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-[0.98] transition-all">Profile</button>
+    {!student.isDeleted && <button onClick={() => onSelect(student.id)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-[0.98] transition-all">Profile</button>}
   </div>
 );
 
@@ -379,6 +420,7 @@ const StudentModal: React.FC<{
     meetingLink: '',
     collaboratorId: '',
     status: 'active',
+    isDeleted: false,
     joiningDate: new Date().toISOString().split('T')[0],
     enrollments: [{
       course: COURSES[0],
@@ -507,7 +549,7 @@ const StudentModal: React.FC<{
       <div className="bg-white rounded-[3rem] w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-300 max-h-[95vh] flex flex-col">
         <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
           <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
-            <div><h2 className="text-2xl font-black text-slate-800">{student ? 'Update Portfolio' : 'New Enrollment'}</h2><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Multi-Disciplinary Records</p></div>
+            <div><h2 className="text-2xl font-black text-slate-800">{student ? 'Update Portfolio' : 'New Enrollment'}</h2><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {formData.id}</p></div>
             <button type="button" onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24} className="text-slate-400" /></button>
           </div>
 

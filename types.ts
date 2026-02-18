@@ -31,6 +31,7 @@ export interface Student {
   collaboratorId?: string;
   status: StudentStatus;
   paymentRequested?: boolean;
+  isDeleted?: boolean; // New: Soft delete support
   enrollments: CourseEnrollment[]; // New: Supports multiple courses
   billing: {
     type: BillingType;
@@ -83,6 +84,7 @@ export interface GroupBatch {
   level: string;
   studentIds: string[];
   active: boolean;
+  isDeleted?: boolean; // New: Soft delete support
 }
 
 export interface ClassSchedule {
@@ -98,6 +100,7 @@ export interface ClassSchedule {
   endTime: string;
   startDate: string;
   active: boolean;
+  isDeleted?: boolean; // New: Soft delete support
 }
 
 export interface ClassSession {
@@ -113,6 +116,7 @@ export interface ClassSession {
   end: string;
   status: SessionStatus;
   topic?: string;
+  isDeleted?: boolean; // New: Soft delete support
 }
 
 export interface AttendanceRecord {

@@ -58,9 +58,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const isAdmin = auth.currentUser?.email?.toLowerCase() === 'kingcompiler.official@gmail.com';
 
   const fetchInitialData = async () => {
-    const cachedStudents = await dbService.getStudents(true);
-    const cachedSessions = await dbService.getSessions(true);
-    const cachedGroups = await dbService.getGroups(true);
+    const cachedStudents = await dbService.getStudents(true, false);
+    const cachedSessions = await dbService.getSessions(true, false);
+    const cachedGroups = await dbService.getGroups(true, false);
     
     setStudents(cachedStudents);
     setSessions(cachedSessions);
@@ -70,9 +70,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
     setIsSyncing(true);
     try {
       const [sData, sessData, gData] = await Promise.all([
-        dbService.getStudents(false),
-        dbService.getSessions(false),
-        dbService.getGroups(false)
+        dbService.getStudents(false, false),
+        dbService.getSessions(false, false),
+        dbService.getGroups(false, false)
       ]);
       setStudents(sData);
       setSessions(sessData);
@@ -89,7 +89,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   }, []);
 
   const pendingPayments = useMemo(() => 
-    students.filter(s => s.paymentRequested), 
+    students.filter(s => s.paymentRequested && !s.isDeleted), 
   [students]);
 
   const handleConfirmPayment = async (student: Student) => {
@@ -112,27 +112,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const tomorrowStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
   /**
-   * Refined Agenda Logic:
-   * 1. Filters by target date.
-   * 2. Hides students who are currently on 'Break'.
-   * 3. Deduplicates entries by Identity + Time to prevent repetition spam.
+   * Agenda filtering safeguards:
+   * 1. Check if session is explicitly deleted.
+   * 2. Check if student owner is deleted or on break.
+   * 3. Check if group owner is deleted.
    */
   const getFilteredAgenda = (targetDateStr: string) => {
     const seenMap = new Set<string>();
     
     return sessions
       .filter(s => {
-        // 1. Date Check
+        // Explicitly skip deleted sessions
+        if (s.isDeleted) return false;
+
+        // Date check
         if (!s.start?.startsWith(targetDateStr)) return false;
 
-        // 2. Break Status Check
+        // Student existence check
         if (s.studentId) {
           const student = students.find(st => st.id === s.studentId);
-          if (student?.status === 'break') return false;
+          if (!student || student.isDeleted || student.status === 'break') return false;
         }
 
-        // 3. Visual Deduplication
-        // Key: StudentID/GroupID + StartTime
+        // Batch existence check
+        if (s.groupId) {
+          const group = groups.find(g => g.id === s.groupId);
+          if (!group || group.isDeleted) return false;
+        }
+
+        // Prevent repeated visual entries
         const identity = s.groupId || s.studentId || 'unknown';
         const dedupKey = `${identity}_${s.start}`;
         if (seenMap.has(dedupKey)) return false;
@@ -143,13 +151,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
       .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
   };
 
-  const todayAgenda = useMemo(() => getFilteredAgenda(todayStr), [sessions, todayStr, students]);
-  const tomorrowAgenda = useMemo(() => getFilteredAgenda(tomorrowStr), [sessions, tomorrowStr, students]);
+  const todayAgenda = useMemo(() => getFilteredAgenda(todayStr), [sessions, todayStr, students, groups]);
+  const tomorrowAgenda = useMemo(() => getFilteredAgenda(tomorrowStr), [sessions, tomorrowStr, students, groups]);
 
   const activeAgenda = agendaView === 'today' ? todayAgenda : tomorrowAgenda;
 
   const stats = useMemo(() => {
-    const activeStudents = students.filter(s => s.status === 'active');
+    const activeStudents = students.filter(s => s.status === 'active' && !s.isDeleted);
     const overdueList = activeStudents.filter(s => s.billing?.feeStatus === 'due');
     const totalMonthlyRevenue = activeStudents.reduce((acc, s) => acc + (s.billing?.feeAmount || 0), 0);
     const collectedRevenue = activeStudents
@@ -157,7 +165,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
       .reduce((acc, s) => acc + (s.billing?.feeAmount || 0), 0);
 
     return {
-      totalStudents: students.length,
+      totalStudents: students.filter(s => !s.isDeleted).length,
       activeCount: activeStudents.length,
       todayCount: todayAgenda.length,
       tomorrowCount: tomorrowAgenda.length,
@@ -338,7 +346,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 lg:mb-10">
             <div>
               <h3 className="text-lg lg:text-xl font-black text-slate-800 tracking-tight">Agenda Queue</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Direct Class Visibility</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Live Performance Tracking</p>
             </div>
             
             <div className="flex bg-slate-100 p-1.5 rounded-2xl">
@@ -413,7 +421,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
             ))}
             {activeAgenda.length === 0 && (
               <div className="py-16 text-center border-2 border-dashed border-slate-100 rounded-[2rem] bg-slate-50/30">
-                <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">No sessions found</p>
+                <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">No active sessions</p>
               </div>
             )}
           </div>
