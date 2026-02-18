@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/db';
 import { Homework, Student } from '../types';
-import { Plus, Trash2, Search, X, FileText, Save, ClipboardList, User, Layers, CheckCircle2, Clock, Link as LinkIcon, Image as ImageIcon, Upload, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Search, X, FileText, Save, ClipboardList, User, Layers, CheckCircle2, Clock, Link as LinkIcon, Image as ImageIcon, Upload, RefreshCw, Users } from 'lucide-react';
 import { LEVEL_TOPICS } from '../constants';
 
 export const HomeworkManager: React.FC = () => {
@@ -182,6 +182,7 @@ export const HomeworkManager: React.FC = () => {
 };
 
 const HomeworkModal: React.FC<{ students: Student[], onClose: () => void, onSave: (h: Homework) => void }> = ({ students, onClose, onSave }) => {
+  const [audienceType, setAudienceType] = useState<'level' | 'student'>('level');
   const [formData, setFormData] = useState<Homework>({
     id: Math.random().toString(36).substr(2, 9),
     title: '',
@@ -207,7 +208,25 @@ const HomeworkModal: React.FC<{ students: Student[], onClose: () => void, onSave
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Safety check: ensure one is selected
+    if (audienceType === 'level' && !formData.level) {
+      alert("Please select a target Level.");
+      return;
+    }
+    if (audienceType === 'student' && !formData.studentId) {
+      alert("Please select a specific Student.");
+      return;
+    }
     onSave(formData);
+  };
+
+  const handleAudienceSwitch = (type: 'level' | 'student') => {
+    setAudienceType(type);
+    if (type === 'level') {
+      setFormData({ ...formData, studentId: '' });
+    } else {
+      setFormData({ ...formData, level: '' });
+    }
   };
 
   return (
@@ -216,37 +235,37 @@ const HomeworkModal: React.FC<{ students: Student[], onClose: () => void, onSave
         <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
           <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
             <h2 className="text-xl font-black text-slate-800">Assign Training</h2>
-            <button type="button" onClick={onClose}><X className="text-slate-400" /></button>
+            <button type="button" onClick={onClose}><X className="text-slate-400" size={24} /></button>
           </div>
-          <div className="p-8 space-y-6 overflow-y-auto flex-1">
+          <div className="p-8 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
             <div>
-              <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Headline</label>
-              <input required className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+              <label className="text-[10px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Headline</label>
+              <input required className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold focus:ring-4 focus:ring-amber-500/10 outline-none transition-all" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Mastering Endgame Tactics" />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Instructions</label>
-              <textarea required rows={3} className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+              <label className="text-[10px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Instructions</label>
+              <textarea required rows={3} className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-medium text-sm focus:ring-4 focus:ring-amber-500/10 outline-none transition-all" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Solve 5 puzzles on the link below and record your thoughts..." />
             </div>
             
-            <div className="space-y-4 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+            <div className="space-y-4 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
                <div>
-                  <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest flex items-center gap-2">
+                  <label className="text-[10px] font-black text-slate-400 mb-2 block uppercase tracking-widest flex items-center gap-2">
                     <LinkIcon size={12}/> Interactive Link
                   </label>
                   <input 
-                    className="w-full px-5 py-3 rounded-xl bg-white border border-slate-100 font-bold text-xs" 
-                    placeholder="https://..."
+                    className="w-full px-5 py-3 rounded-xl bg-white border border-slate-100 font-bold text-xs outline-none focus:border-amber-500 transition-colors" 
+                    placeholder="https://lichess.org/..."
                     value={formData.resourceLink} 
                     onChange={e => setFormData({...formData, resourceLink: e.target.value})} 
                   />
                </div>
                <div>
-                  <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest flex items-center gap-2">
+                  <label className="text-[10px] font-black text-slate-400 mb-2 block uppercase tracking-widest flex items-center gap-2">
                     <ImageIcon size={12}/> Diagram / Task Image
                   </label>
                   <div className="flex gap-4 items-center">
                      <label className="flex-1 cursor-pointer">
-                        <div className="flex items-center justify-center gap-3 p-4 bg-white border-2 border-dashed border-slate-200 rounded-2xl hover:border-amber-400 hover:bg-amber-50 transition-all text-slate-500 font-bold text-xs uppercase">
+                        <div className="flex items-center justify-center gap-3 p-4 bg-white border-2 border-dashed border-slate-200 rounded-2xl hover:border-amber-400 hover:bg-amber-50 transition-all text-slate-400 font-bold text-[10px] uppercase tracking-widest">
                           <Upload size={18} /> {formData.attachmentUrl ? 'Change Image' : 'Select Image'}
                         </div>
                         <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
@@ -255,24 +274,65 @@ const HomeworkModal: React.FC<{ students: Student[], onClose: () => void, onSave
                </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-               <div>
-                  <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Due Date</label>
-                  <input type="date" className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} />
-               </div>
-               <div>
-                  <label className="text-[10px] font-bold text-slate-500 mb-2 block uppercase tracking-widest">Target Tier</label>
-                  <select className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-xs" value={formData.level} onChange={e => setFormData({...formData, level: e.target.value, studentId: ''})}>
-                    <option value="">Select Level</option>
+            <div className="space-y-4">
+              <label className="text-[10px] font-black text-slate-400 block uppercase tracking-widest">Target Audience</label>
+              <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                <button 
+                  type="button"
+                  onClick={() => handleAudienceSwitch('level')}
+                  className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${audienceType === 'level' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                >
+                  <Users size={14} /> Course Level
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => handleAudienceSwitch('student')}
+                  className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${audienceType === 'student' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                >
+                  <User size={14} /> Individual
+                </button>
+              </div>
+
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                {audienceType === 'level' ? (
+                  <select 
+                    required 
+                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-sm outline-none focus:ring-4 focus:ring-amber-500/10" 
+                    value={formData.level} 
+                    onChange={e => setFormData({...formData, level: e.target.value})}
+                  >
+                    <option value="">Select Target Level</option>
                     {LEVEL_TOPICS.map(l => <option key={l.level} value={l.level}>{l.level}</option>)}
                   </select>
-               </div>
+                ) : (
+                  <select 
+                    required 
+                    className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-sm outline-none focus:ring-4 focus:ring-amber-500/10" 
+                    value={formData.studentId} 
+                    onChange={e => setFormData({...formData, studentId: e.target.value})}
+                  >
+                    <option value="">Select Recipient</option>
+                    {students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black text-slate-400 mb-2 block uppercase tracking-widest">Due Date</label>
+              <input 
+                type="date" 
+                required
+                className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold text-sm focus:ring-4 focus:ring-amber-500/10 outline-none transition-all" 
+                value={formData.dueDate} 
+                onChange={e => setFormData({...formData, dueDate: e.target.value})} 
+              />
             </div>
           </div>
           <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
-             <button type="button" onClick={onClose} className="flex-1 py-4 font-black uppercase text-[10px] text-slate-400">Cancel</button>
-             <button type="submit" className="flex-[2] bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-slate-800 transition-all">
-               <Save size={14}/> Save Task
+             <button type="button" onClick={onClose} className="flex-1 py-5 font-black uppercase text-[10px] tracking-widest text-slate-400 hover:text-slate-600">Cancel</button>
+             <button type="submit" className="flex-[2] bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/20 active:scale-[0.98]">
+               <Save size={18}/> Deploy Task
              </button>
           </div>
         </form>

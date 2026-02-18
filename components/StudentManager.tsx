@@ -514,8 +514,9 @@ const StudentModal: React.FC<{
           <div className="flex-1 p-8 space-y-10 overflow-y-auto custom-scrollbar">
             <div className="space-y-4">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1 flex items-center gap-2"><Sparkles size={14} className="text-amber-500" /> Identity Info</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <input required type="text" placeholder="Full Name" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold focus:ring-4 focus:ring-amber-500/10 outline-none" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} />
+                <input required type="number" placeholder="Age" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold focus:ring-4 focus:ring-amber-500/10 outline-none" value={formData.age} onChange={e => setFormData({...formData, age: Number(e.target.value)})} />
                 <select className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold focus:ring-4 focus:ring-amber-500/10 outline-none" value={formData.collaboratorId} onChange={e => setFormData({...formData, collaboratorId: e.target.value})}>
                   <option value="">Direct / Academy Self</option>
                   {collaborators.map(c => <option key={c.uid} value={c.uid}>{c.displayName || c.email}</option>)}
