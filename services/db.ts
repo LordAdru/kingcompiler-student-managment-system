@@ -303,6 +303,10 @@ export const dbService = {
     await Promise.all(existingSessions.docs
       .map(sessionDoc => ({ id: sessionDoc.id, ...(sessionDoc.data() as ClassSession) }))
       .filter(session => (session.status || 'upcoming') !== 'completed')
+    const nowIso = new Date().toISOString();
+    await Promise.all(existingSessions.docs
+      .map(sessionDoc => ({ id: sessionDoc.id, ...(sessionDoc.data() as ClassSession) }))
+      .filter(session => (session.status || 'upcoming') !== 'completed' && (session.start || '') >= nowIso)
       .map(session => deleteDoc(doc(db, COLLECTIONS.SESSIONS, session.id))));
 
     await dbService.generateSessionsForSchedule(schedule);
