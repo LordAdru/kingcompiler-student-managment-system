@@ -371,6 +371,20 @@ export const dbService = {
     localStorage.removeItem(CACHE_KEYS.SESSIONS);
   },
 
+  permanentlyDeleteSchedule: async (id: string) => {
+    // 1. Delete all sessions linked to this schedule that are not 'completed'
+    const sessionsSnap = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('scheduleId', '==', id)));
+    for (const d of sessionsSnap.docs) {
+      const data = d.data() as ClassSession;
+      if (data.status !== 'completed') {
+        await deleteDoc(doc(db, COLLECTIONS.SESSIONS, d.id));
+      }
+    }
+    // 2. Delete the actual schedule record
+    await deleteDoc(doc(db, COLLECTIONS.SCHEDULES, id));
+    localStorage.removeItem(CACHE_KEYS.SESSIONS);
+  },
+
   getSessions: async (useCache = true, includeDeleted = false): Promise<ClassSession[]> => {
     if (useCache && !includeDeleted) {
       const cached = localStorage.getItem(CACHE_KEYS.SESSIONS);

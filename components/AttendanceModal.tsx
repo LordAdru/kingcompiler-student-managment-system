@@ -20,11 +20,12 @@ import {
   Copy,
   Trash2,
   Settings2,
-  CalendarDays
+  CalendarDays,
+  CalendarX
 } from 'lucide-react';
 import { ClassSession, Student, GroupBatch, ClassSchedule } from '../types';
 import { dbService } from '../services/db';
-import { AttendanceResult } from '../services/logic';
+import { academyLogic, AttendanceResult } from '../services/logic';
 import { ScheduleModal } from './ScheduleModal';
 
 interface AttendanceModalProps {
@@ -125,6 +126,16 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
     }
   };
 
+  const handleDeleteSeries = async () => {
+    if (confirm('DANGER: Permanently delete the ENTIRE RECURRING series? This schedule will never appear again. Historical (completed) classes will remain.')) {
+      setIsFinishing(true);
+      await dbService.permanentlyDeleteSchedule(session.scheduleId);
+      setIsFinishing(false);
+      onClose();
+      window.location.reload();
+    }
+  };
+
   const handleSaveMasterSchedule = async (newSchedule: ClassSchedule) => {
     await dbService.saveSchedule(newSchedule);
     setIsRescheduling(false);
@@ -153,6 +164,13 @@ export const AttendanceModal: React.FC<AttendanceModalProps> = ({ session, onClo
               title="Purge This Instance"
              >
                <Trash2 size={20} />
+             </button>
+             <button 
+              onClick={handleDeleteSeries}
+              className="text-white/40 hover:text-red-600 transition-colors p-2 bg-red-500/10 rounded-full border border-red-500/20"
+              title="PERMANENT DELETE SERIES"
+             >
+               <CalendarX size={20} className="text-red-500" />
              </button>
              <button onClick={onClose} className="text-white/40 hover:text-white transition-colors p-2 bg-white/5 rounded-full">
                <X size={24} />
