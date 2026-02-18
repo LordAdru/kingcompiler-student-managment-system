@@ -111,47 +111,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const tomorrowStr = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
+  /**
+   * Refined Agenda Logic:
+   * 1. Filters by target date.
+   * 2. Hides students who are currently on 'Break'.
+   * 3. Deduplicates entries by Identity + Time to prevent repetition spam.
+   */
   const getFilteredAgenda = (targetDateStr: string) => {
-    const activeStudentIds = new Set(students.filter(s => s.status !== 'break').map(s => s.id));
-
-    const rawAgenda = sessions
-      .filter(s => s.start?.startsWith(targetDateStr))
+    const seenMap = new Set<string>();
+    
+    return sessions
       .filter(s => {
-        if (s.studentId && !activeStudentIds.has(s.studentId)) return false;
+        // 1. Date Check
+        if (!s.start?.startsWith(targetDateStr)) return false;
+
+        // 2. Break Status Check
+        if (s.studentId) {
+          const student = students.find(st => st.id === s.studentId);
+          if (student?.status === 'break') return false;
+        }
+
+        // 3. Visual Deduplication
+        // Key: StudentID/GroupID + StartTime
+        const identity = s.groupId || s.studentId || 'unknown';
+        const dedupKey = `${identity}_${s.start}`;
+        if (seenMap.has(dedupKey)) return false;
+        seenMap.add(dedupKey);
+
         return true;
       })
       .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
-      
-    const finalAgenda: ClassSession[] = [];
-    const studentBusyMap = new Map<string, string>();
-
-    const groupSessions = rawAgenda.filter(s => !!s.groupId);
-    groupSessions.forEach(gs => {
-      const timeSlot = gs.start.split('T')[1]?.substring(0, 5) || "00:00";
-      const groupData = groups.find(g => g.id === gs.groupId);
-      if (groupData) {
-        finalAgenda.push(gs);
-        groupData.studentIds.forEach(sid => {
-          studentBusyMap.set(`${timeSlot}_${sid}`, 'in-group');
-        });
-      }
-    });
-
-    const individualSessions = rawAgenda.filter(s => !s.groupId && !!s.studentId);
-    individualSessions.forEach(is => {
-      const timeSlot = is.start.split('T')[1]?.substring(0, 5) || "00:00";
-      const busyKey = `${timeSlot}_${is.studentId}`;
-      if (!studentBusyMap.has(busyKey)) {
-        finalAgenda.push(is);
-        studentBusyMap.set(busyKey, 'individual');
-      }
-    });
-    
-    return finalAgenda.sort((a, b) => (a.start || "").localeCompare(b.start || ""));
   };
 
-  const todayAgenda = useMemo(() => getFilteredAgenda(todayStr), [sessions, todayStr, groups, students]);
-  const tomorrowAgenda = useMemo(() => getFilteredAgenda(tomorrowStr), [sessions, tomorrowStr, groups, students]);
+  const todayAgenda = useMemo(() => getFilteredAgenda(todayStr), [sessions, todayStr, students]);
+  const tomorrowAgenda = useMemo(() => getFilteredAgenda(tomorrowStr), [sessions, tomorrowStr, students]);
 
   const activeAgenda = agendaView === 'today' ? todayAgenda : tomorrowAgenda;
 
@@ -345,7 +338,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 lg:mb-10">
             <div>
               <h3 className="text-lg lg:text-xl font-black text-slate-800 tracking-tight">Agenda Queue</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Deduplicated Smart View</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Direct Class Visibility</p>
             </div>
             
             <div className="flex bg-slate-100 p-1.5 rounded-2xl">
@@ -401,7 +394,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectStuden
                       </span>
                     </div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                      <Clock size={10} /> {format(new Date(session.start), 'HH:mm')}
+                      <Clock size={10} /> {format(new Date(session.start), 'HH:mm')} Sharp
                     </p>
                   </div>
                 </div>

@@ -233,17 +233,8 @@ export const dbService = {
 
   deleteStudent: async (id: string) => {
     await deleteDoc(doc(db, COLLECTIONS.STUDENTS, id));
-
-    const studentSchedules = await getDocs(query(collection(db, COLLECTIONS.SCHEDULES), where('studentId', '==', id)));
-    await Promise.all(studentSchedules.docs.map(scheduleDoc => deleteDoc(doc(db, COLLECTIONS.SCHEDULES, scheduleDoc.id))));
-
-    const studentSessions = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('studentId', '==', id)));
-    await Promise.all(studentSessions.docs.map(sessionDoc => deleteDoc(doc(db, COLLECTIONS.SESSIONS, sessionDoc.id))));
-
     const current = await dbService.getStudents(true);
     localStorage.setItem(CACHE_KEYS.STUDENTS, JSON.stringify(current.filter(s => s.id !== id)));
-    const currentSessions = await dbService.getSessions(true);
-    localStorage.setItem(CACHE_KEYS.SESSIONS, JSON.stringify(currentSessions.filter(s => s.studentId !== id)));
   },
 
   getGroups: async (useCache = true): Promise<GroupBatch[]> => {
@@ -298,21 +289,11 @@ export const dbService = {
 
   saveSchedule: async (schedule: ClassSchedule) => {
     await setDoc(doc(db, COLLECTIONS.SCHEDULES, schedule.id), sanitize(schedule), { merge: true });
-
-    const existingSessions = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('scheduleId', '==', schedule.id)));
-    const nowIso = new Date().toISOString();
-    await Promise.all(existingSessions.docs
-      .map(sessionDoc => ({ id: sessionDoc.id, ...(sessionDoc.data() as ClassSession) }))
-      .filter(session => (session.status || 'upcoming') !== 'completed' && (session.start || '') >= nowIso)
-      .map(session => deleteDoc(doc(db, COLLECTIONS.SESSIONS, session.id))));
-
     await dbService.generateSessionsForSchedule(schedule);
   },
 
   deleteSchedule: async (id: string) => {
     await deleteDoc(doc(db, COLLECTIONS.SCHEDULES, id));
-    const relatedSessions = await getDocs(query(collection(db, COLLECTIONS.SESSIONS), where('scheduleId', '==', id)));
-    await Promise.all(relatedSessions.docs.map(sessionDoc => deleteDoc(doc(db, COLLECTIONS.SESSIONS, sessionDoc.id))));
   },
 
   getSessions: async (useCache = true): Promise<ClassSession[]> => {
@@ -321,7 +302,6 @@ export const dbService = {
       if (cached) return JSON.parse(cached);
     }
     try {
-      await dbService.syncAllSessions();
       const { role, uid } = await getCurrentUserRole();
       const coll = collection(db, COLLECTIONS.SESSIONS);
       let q = query(coll);
