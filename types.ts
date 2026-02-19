@@ -47,14 +47,21 @@ export interface Student {
   assignedTopics: string[];
 }
 
+export type LibraryGenre = 'Chess' | 'Python' | 'Web Dev' | 'AI' | 'Game Dev';
+export type LibraryLevel = 'Beginner' | 'Intermediate' | 'Advance';
+
 export interface LibraryResource {
   id: string;
   title: string;
-  category: string;
+  genre: LibraryGenre;
+  level: LibraryLevel;
+  category: string; // Internal category tag
   url: string;
   coverImageUrl?: string;
   type: 'pdf' | 'link' | 'video';
   addedDate: string;
+  storageSource: 'cloud' | 'local'; // New: Identifies if file is in browser DB
+  localAssetId?: string; // New: Links to IndexedDB record
 }
 
 export interface Announcement {

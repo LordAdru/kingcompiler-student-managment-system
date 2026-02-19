@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { dbService } from '../services/db';
+import { dbService, localAssetService } from '../services/db';
 import { Student, AttendanceRecord, LibraryResource, Announcement, Homework } from '../types';
 import { 
   Award, 
@@ -30,7 +30,9 @@ import {
   History,
   TrendingUp,
   Activity,
-  GraduationCap
+  GraduationCap,
+  // Fix: Added missing Library as LibraryIcon import
+  Library as LibraryIcon
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { format } from 'date-fns';
@@ -112,6 +114,24 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
     }
   };
 
+  const handleOpenResource = async (item: LibraryResource) => {
+    if (item.storageSource === 'local' && item.localAssetId) {
+      const fileData = await localAssetService.getFile(item.localAssetId);
+      if (fileData instanceof Blob) {
+        const url = URL.createObjectURL(fileData);
+        window.open(url, '_blank');
+        // Revoke after a delay to ensure it opened
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      } else if (typeof fileData === 'string' && fileData.startsWith('data:')) {
+        window.open(fileData, '_blank');
+      } else {
+        alert("This file is stored on the administrator's local device. It is currently unavailable on this machine.");
+      }
+    } else {
+      window.open(item.url, '_blank');
+    }
+  };
+
   if (isLoading && !student) return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-8">
       <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-6"></div>
@@ -190,7 +210,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
                 ) : homework.map(hw => (
                   <div key={hw.id} className={`bg-white/5 border border-white/10 rounded-[2.5rem] p-10 flex flex-col group relative ${hw.status === 'submitted' ? 'opacity-60' : ''}`}>
                     <div className="flex items-center gap-5 mb-6">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${hw.status === 'submitted' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-800 text-amber-500'}`}><ClipboardList size={28} /></div>
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${hw.status === 'submitted' ? 'bg-emerald-50/10 text-emerald-500' : 'bg-slate-800 text-amber-500'}`}><ClipboardList size={28} /></div>
                       <div>
                         <h4 className={`font-black text-2xl tracking-tight ${hw.status === 'submitted' ? 'line-through' : ''}`}>{hw.title}</h4>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Due {format(new Date(hw.dueDate), 'MMM dd')}</p>
@@ -234,12 +254,17 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
                 {library.map(item => (
                   <div key={item.id} className="bg-white/5 border border-white/10 rounded-[3.5rem] flex flex-col overflow-hidden hover:bg-white/10 transition-all group">
                     <div className="h-64 relative overflow-hidden bg-slate-800/50">
-                       {item.coverImageUrl && <img src={item.coverImageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />}
-                       <div className="absolute top-6 left-6"><span className="px-4 py-1.5 bg-amber-500/90 text-slate-900 text-[10px] font-black uppercase rounded-full shadow-lg">{item.category}</span></div>
+                       <LocalCover resource={item} />
+                       <div className="absolute top-6 left-6 flex gap-2">
+                         <span className="px-4 py-1.5 bg-amber-500/90 text-slate-900 text-[10px] font-black uppercase rounded-full shadow-lg">{item.category}</span>
+                         {item.storageSource === 'local' && (
+                           <span className="px-4 py-1.5 bg-emerald-500/90 text-white text-[10px] font-black uppercase rounded-full shadow-lg">Local File</span>
+                         )}
+                       </div>
                     </div>
                     <div className="p-10 flex flex-col gap-10">
                       <div><h4 className="font-black text-2xl mb-3">{item.title}</h4><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{item.type.toUpperCase()} DOCUMENT</p></div>
-                      <button onClick={() => window.open(item.url, '_blank')} className="flex items-center justify-center gap-3 py-6 bg-white text-slate-950 rounded-[2rem] font-black text-xs uppercase hover:bg-amber-500 transition-all">Access Asset <ArrowRight size={18} /></button>
+                      <button onClick={() => handleOpenResource(item)} className="flex items-center justify-center gap-3 py-6 bg-white text-slate-950 rounded-[2rem] font-black text-xs uppercase hover:bg-amber-500 transition-all">Access Asset <ArrowRight size={18} /></button>
                     </div>
                   </div>
                 ))}
@@ -280,6 +305,32 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ studentId, onLogou
         <NavButton active={activeTab === 'library'} onClick={() => setActiveTab('library')} icon={BookOpen} label="Library" />
         <NavButton active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements')} icon={Bell} label="News" />
       </nav>
+    </div>
+  );
+};
+
+const LocalCover: React.FC<{ resource: LibraryResource }> = ({ resource }) => {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (resource.coverImageUrl?.startsWith('local_')) {
+      localAssetService.getFile(resource.coverImageUrl).then(data => {
+        if (data instanceof Blob) setUrl(URL.createObjectURL(data));
+        else if (typeof data === 'string' && data.startsWith('data:')) setUrl(data);
+      });
+    }
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [resource.coverImageUrl]);
+
+  const finalUrl = url || (resource.coverImageUrl?.startsWith('local_') ? null : resource.coverImageUrl);
+
+  if (finalUrl) {
+    return <img src={finalUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="" />;
+  }
+
+  return (
+    <div className="w-full h-full flex items-center justify-center text-slate-700 bg-slate-900">
+      <LibraryIcon size={64} />
     </div>
   );
 };

@@ -38,6 +38,74 @@ const CACHE_KEYS = {
   LIBRARY: 'ka_cache_library'
 };
 
+// --- SYSTEM DEFAULT RESOURCES ---
+const SYSTEM_RESOURCES: LibraryResource[] = [
+  {
+    id: 'starter-workbook-001',
+    title: 'KingCompiler Starter Workbook',
+    genre: 'Chess',
+    level: 'Beginner',
+    category: 'Essential Guide',
+    url: 'https://kingcompiler.com/starter-workbook.pdf',
+    coverImageUrl: 'https://files.oaiusercontent.com/file-AzRj7V7S1Vq8pXm6mF6q6S', // Referencing provided image
+    type: 'pdf',
+    addedDate: '2024-01-01T00:00:00Z',
+    storageSource: 'cloud'
+  }
+];
+
+// --- INDEXED DB ENGINE FOR LOCAL LARGE FILES ---
+const DB_NAME = 'KingAcademyLocalStore';
+const DB_VERSION = 1;
+const STORE_NAME = 'assets';
+
+const openLocalDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const localAssetService = {
+  saveFile: async (id: string, blob: Blob | string): Promise<void> => {
+    const db = await openLocalDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put(blob, id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  },
+  getFile: async (id: string): Promise<Blob | string | null> => {
+    const db = await openLocalDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+  deleteFile: async (id: string): Promise<void> => {
+    const db = await openLocalDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+};
+
 const sanitize = (data: any) => {
   const clean = { ...data };
   Object.keys(clean).forEach(key => {
@@ -74,19 +142,31 @@ async function getCurrentUserRole(): Promise<{ role: string, uid: string, email:
 
 export const dbService = {
   getLibrary: async (useCache = true): Promise<LibraryResource[]> => {
+    let cloudResources: LibraryResource[] = [];
+    
     if (useCache) {
       const cached = localStorage.getItem(CACHE_KEYS.LIBRARY);
-      if (cached) return JSON.parse(cached);
+      if (cached) cloudResources = JSON.parse(cached);
     }
-    try {
-      const snapshot = await getDocs(query(collection(db, COLLECTIONS.LIBRARY), orderBy('addedDate', 'desc')));
-      const resources = snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as LibraryResource));
-      localStorage.setItem(CACHE_KEYS.LIBRARY, JSON.stringify(resources));
-      return resources;
-    } catch (err) {
-      console.warn("DB: Library fetch error", err);
-      return JSON.parse(localStorage.getItem(CACHE_KEYS.LIBRARY) || '[]');
+
+    if (cloudResources.length === 0) {
+      try {
+        const snapshot = await getDocs(query(collection(db, COLLECTIONS.LIBRARY), orderBy('addedDate', 'desc')));
+        cloudResources = snapshot.docs.map((doc: any) => ({ ...doc.data(), id: doc.id } as LibraryResource));
+        localStorage.setItem(CACHE_KEYS.LIBRARY, JSON.stringify(cloudResources));
+      } catch (err) {
+        console.warn("DB: Library fetch error", err);
+        cloudResources = JSON.parse(localStorage.getItem(CACHE_KEYS.LIBRARY) || '[]');
+      }
     }
+
+    // Merge system-level resources (Starter Workbook) with dynamic cloud resources
+    const allResources = [...SYSTEM_RESOURCES, ...cloudResources];
+    
+    // Deduplicate by ID
+    const uniqueResources = Array.from(new Map(allResources.map(r => [r.id, r])).values());
+    
+    return uniqueResources.sort((a, b) => (b.addedDate || "").localeCompare(a.addedDate || ""));
   },
 
   saveLibraryResource: async (resource: LibraryResource) => {
@@ -98,6 +178,14 @@ export const dbService = {
   },
 
   deleteLibraryResource: async (id: string) => {
+    const docSnap = await getDoc(doc(db, COLLECTIONS.LIBRARY, id));
+    if (docSnap.exists()) {
+      const data = docSnap.data() as LibraryResource;
+      if (data.storageSource === 'local') {
+        if (data.localAssetId) await localAssetService.deleteFile(data.localAssetId);
+        if (data.coverImageUrl?.startsWith('local_')) await localAssetService.deleteFile(data.coverImageUrl);
+      }
+    }
     await deleteDoc(doc(db, COLLECTIONS.LIBRARY, id));
     const current = await dbService.getLibrary(true);
     localStorage.setItem(CACHE_KEYS.LIBRARY, JSON.stringify(current.filter(r => r.id !== id)));
