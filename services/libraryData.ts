@@ -20,11 +20,11 @@ export const SYSTEM_RESOURCES: LibraryResource[] = [
     genre: "Chess",
     level: "Beginner",
     category: "Local Upload",
-    url: "/library/chess/beginner/book1.pdf",
+    url: "https://drive.google.com/file/d/1kn02KzbYgI7qYs7VJEPGWmCO_PMlMhxt/preview",
     coverImageUrl: "/library/chess/beginner/book1.png",
     type: "pdf",
     addedDate: "2026-02-19T00:00:00Z",
-    storageSource: "local",
+    storageSource: "cloud",
     localAssetId: "assets/library/chess/beginner/book1.pdf",
   },
   {
