@@ -20,7 +20,7 @@ export const SYSTEM_RESOURCES: LibraryResource[] = [
     genre: "Chess",
     level: "Beginner",
     category: "Local Upload",
-    url: "https://drive.google.com/file/d/1kn02KzbYgI7qYs7VJEPGWmCO_PMlMhxt/preview",
+    url: "https://drive.google.com/file/d/1vwxmpaoGsFOkF3Tsju0V-g9nh90iiOQ4/preview",
     coverImageUrl: "/library/chess/beginner/book1.png",
     type: "pdf",
     addedDate: "2026-02-19T00:00:00Z",
