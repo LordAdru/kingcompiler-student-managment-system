@@ -16,6 +16,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { db, auth } from './firebase';
 import { Student, ClassSchedule, ClassSession, AttendanceRecord, GroupBatch, AppUser, LibraryResource, Announcement, Homework } from '../types';
+import { SYSTEM_RESOURCES as LOCAL_SYSTEM_RESOURCES } from './libraryData';
 import { addDays, format, addWeeks, isAfter, isBefore, startOfDay } from 'date-fns';
 import { COURSES } from '../constants';
 
@@ -39,20 +40,7 @@ const CACHE_KEYS = {
 };
 
 // --- SYSTEM DEFAULT RESOURCES ---
-const SYSTEM_RESOURCES: LibraryResource[] = [
-  {
-    id: 'starter-workbook-001',
-    title: 'KingCompiler Starter Workbook',
-    genre: 'Chess',
-    level: 'Beginner',
-    category: 'Essential Guide',
-    url: 'https://kingcompiler.com/starter-workbook.pdf',
-    coverImageUrl: 'https://files.oaiusercontent.com/file-AzRj7V7S1Vq8pXm6mF6q6S', // Referencing provided image
-    type: 'pdf',
-    addedDate: '2024-01-01T00:00:00Z',
-    storageSource: 'cloud'
-  }
-];
+const SYSTEM_RESOURCES: LibraryResource[] = LOCAL_SYSTEM_RESOURCES;
 
 // --- INDEXED DB ENGINE FOR LOCAL LARGE FILES ---
 const DB_NAME = 'KingAcademyLocalStore';

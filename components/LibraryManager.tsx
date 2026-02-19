@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { dbService, localAssetService } from '../services/db';
+import BookReader from './BookReader';
 import { LibraryResource, LibraryGenre, LibraryLevel } from '../types';
 import { 
   Plus, 
@@ -33,6 +34,7 @@ export const LibraryManager: React.FC = () => {
   const [selectedGenre, setSelectedGenre] = useState<LibraryGenre | 'All'>('All');
   const [selectedLevel, setSelectedLevel] = useState<LibraryLevel | 'All'>('All');
   const [isLoading, setIsLoading] = useState(true);
+  const [readerResource, setReaderResource] = useState<LibraryResource | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -188,9 +190,16 @@ export const LibraryManager: React.FC = () => {
               </div>
               <h3 className="text-lg font-black text-slate-800 line-clamp-2 leading-tight h-10">{res.title}</h3>
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{res.category || 'Standard'}</p>
+              <div className="flex items-center gap-3 mt-4">
+                <button onClick={(e) => { e.stopPropagation(); setReaderResource(res); }} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black rounded-2xl shadow-md text-sm">Read</button>
+                <button onClick={(e) => { e.stopPropagation(); handleOpenLocalFile(res); }} className="px-4 py-2 bg-white border border-slate-100 text-slate-600 rounded-2xl shadow-sm text-sm">Open</button>
+              </div>
             </div>
           </div>
         ))}
+        {readerResource && (
+          <BookReader resource={readerResource} onClose={() => setReaderResource(null)} />
+        )}
         {filteredResources.length === 0 && !isLoading && (
           <div className="col-span-full py-32 text-center bg-white rounded-[3rem] border border-dashed border-slate-200">
              <LibraryIcon size={64} className="mx-auto text-slate-100 mb-6" />
