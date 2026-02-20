@@ -33,7 +33,7 @@ export const SYSTEM_RESOURCES: LibraryResource[] = [
     genre: "Chess",
     level: "Intermediate",
     category: "Puzzle Training",
-    url: "/library/chess/intermediate/book2.pdf",
+    url: "https://drive.google.com/file/d/1YH8sMKQoo5i-JarOgcOv7SQqu2Z8vvpS/preview",
     coverImageUrl: "/library/chess/intermediate/book2.jpeg",
     type: "pdf",
     addedDate: "2026-02-19T00:00:00Z",
